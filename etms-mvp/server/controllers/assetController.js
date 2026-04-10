@@ -129,6 +129,9 @@ async function transferAsset(req, res) {
     if (!to_user_id) {
       return res.status(400).json({ success: false, message: 'to_user_id is required.' })
     }
+    if (note && String(note).length > 500) {
+      return res.status(400).json({ success: false, message: 'note must be at most 500 characters.' })
+    }
 
     const asset = await assetModel.findById(id)
     if (!asset) return res.status(404).json({ success: false, message: 'Asset not found.' })

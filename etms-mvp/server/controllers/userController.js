@@ -32,6 +32,9 @@ async function createUser(req, res) {
     if (!emp_id || !name || !email || !password || !role) {
       return res.status(400).json({ success: false, message: 'emp_id, name, email, password, and role are required.' })
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address.' })
+    }
 
     if (!Object.values(ROLES).includes(role)) {
       return res.status(400).json({ success: false, message: 'Invalid role.' })

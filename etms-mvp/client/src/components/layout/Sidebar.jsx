@@ -27,17 +27,17 @@ export default function Sidebar() {
 
         {/* Tickets — label differs by role */}
         {user?.role === ROLES.EMPLOYEE && (
-          <NavLink to="/tickets" className={linkClass}>
+          <NavLink to="/tickets" end className={linkClass}>
             🎫 My Tickets
           </NavLink>
         )}
         {user?.role === ROLES.MANAGER && (
-          <NavLink to="/tickets" className={linkClass}>
+          <NavLink to="/tickets" end className={linkClass}>
             🗂 Managed Tickets
           </NavLink>
         )}
         {user?.role === ROLES.ADMIN && (
-          <NavLink to="/tickets" className={linkClass}>
+          <NavLink to="/tickets" end className={linkClass}>
             📋 All Tickets
           </NavLink>
         )}

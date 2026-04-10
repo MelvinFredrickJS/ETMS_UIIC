@@ -90,6 +90,9 @@ async function rejectTicket(req, res) {
     if (!rejection_reason || !rejection_reason.trim()) {
       return res.status(400).json({ success: false, message: 'Rejection reason is required.' })
     }
+    if (rejection_reason.trim().length < 10) {
+      return res.status(400).json({ success: false, message: 'Rejection reason must be at least 10 characters.' })
+    }
 
     await ticketModel.updateStatusWithNote(ticketId, 'rejected', 'rejection_reason', rejection_reason)
     await ticketModel.logAction({
@@ -121,7 +124,9 @@ async function reapproveTicket(req, res) {
     if (ticket.status !== 'pending_approval') {
       return res.status(400).json({ success: false, message: 'Can only re-approve pending tickets.' })
     }
-    if (!ticket.report_reason) {
+    const logs = await ticketModel.getLogs(ticketId)
+    const isEscalatedTicket = logs.some(l => l.action === 'ESCALATED' || l.action === 'BACK_TO_MANAGER')
+    if (!isEscalatedTicket) {
       return res.status(400).json({ success: false, message: 'This is not an escalated ticket.' })
     }
     if (Number(ticket.approval_owner_id) !== Number(req.user.id)) {

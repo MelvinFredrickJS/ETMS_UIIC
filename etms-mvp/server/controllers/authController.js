@@ -8,6 +8,12 @@ async function login(req, res) {
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password are required.' })
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address.' })
+    }
+    if (String(password).length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' })
+    }
 
     const user = await userModel.findByEmail(email)
     if (!user) {

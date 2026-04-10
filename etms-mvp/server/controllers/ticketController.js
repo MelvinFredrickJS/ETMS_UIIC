@@ -18,10 +18,23 @@ async function createTicket(req, res) {
   try {
     const { title, description, ticket_type_id, category_id, priority } = req.body
     let   { asset_id } = req.body
+    const PRIORITY_VALUES = ['low', 'medium', 'high', 'critical']
 
     if (!title || !description || !ticket_type_id || !category_id || !priority) {
       if (req.file) fs.unlink(req.file.path, () => {})
       return res.status(400).json({ success: false, message: 'All fields are required.' })
+    }
+    if (String(title).trim().length < 5 || String(title).trim().length > 200) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      return res.status(400).json({ success: false, message: 'title must be between 5 and 200 characters.' })
+    }
+    if (String(description).trim().length < 20) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      return res.status(400).json({ success: false, message: 'description must be at least 20 characters.' })
+    }
+    if (!PRIORITY_VALUES.includes(String(priority))) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      return res.status(400).json({ success: false, message: 'priority must be one of: low, medium, high, critical.' })
     }
 
     if (req.file) tmpFilePath = req.file.path
@@ -305,7 +318,7 @@ async function getAllowedStatuses(req, res) {
 async function updateTicketStatus(req, res) {
   try {
     const id = Number(req.params.id)
-    const { status, note } = req.body
+    const { status, note, report_reason } = req.body
 
     if (!status) return res.status(400).json({ success: false, message: 'status is required.' })
 
@@ -337,15 +350,17 @@ async function updateTicketStatus(req, res) {
 
     if (status === 'reported') {
       // resolved → reported requires note (min 10)
-      if (ticket.status === 'resolved' && (!note || note.trim().length < 10)) {
+      const escalationReason = String(report_reason ?? note ?? '').trim()
+
+      if (ticket.status === 'resolved' && escalationReason.length < 10) {
         return res.status(400).json({ success: false, message: 'report_reason must be at least 10 characters.' })
       }
 
-      await ticketModel.updateStatusWithNote(id, 'reported', 'report_reason', note || '')
+      await ticketModel.updateStatusWithNote(id, 'reported', 'report_reason', escalationReason || null)
       await ticketModel.logAction({
         ticket_id: id, action: 'ESCALATED',
         old_status: ticket.status, new_status: 'reported',
-        performed_by: req.user.id, note,
+        performed_by: req.user.id, note: escalationReason || null,
       })
 
       // Auto-transition: reported → pending_approval
@@ -362,8 +377,11 @@ async function updateTicketStatus(req, res) {
         .catch(err => console.error('Email error:', err.message))
     } else {
       await ticketModel.updateStatus(id, status)
+      const action = ticket.status === 'assigned' && status === 'in_progress'
+        ? 'WORK_STARTED'
+        : 'STATUS_CHANGED'
       await ticketModel.logAction({
-        ticket_id: id, action: 'STATUS_CHANGED',
+        ticket_id: id, action,
         old_status: ticket.status, new_status: status,
         performed_by: req.user.id, note: note || null,
       })
