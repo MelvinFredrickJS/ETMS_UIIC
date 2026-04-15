@@ -11,6 +11,7 @@ import * as assetModel from '../models/assetModel'
 import * as userModel from '../models/userModel'
 import * as emailService from '../services/emailService'
 import { getNextEmployeeInCategory } from '../services/assignmentService'
+import { getNextApprovalManager } from '../services/managerAssignmentService'
 import type { TicketRow, TicketStatus, Role } from '../types'
 
 const MAX_TICKET_ID_RETRIES = 3
@@ -80,11 +81,24 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       asset_id = undefined
     }
 
-    const isManagerInOwnCategory =
-      req.user.role === ROLES.MANAGER && Number(category.manager_id) === Number(req.user.id)
+    // Two-manager variant: approval_owner_id is assigned via round-robin between
+    // the 2 global managers (least pending approvals wins), not per-category.
+    // Manager raising in any category is NOT auto-approved — both managers are peers.
+    const isManagerInOwnCategory = false  // disabled in two-manager variant
 
-    const approvalOwnerId      = category.requires_approval ? category.manager_id ?? null : null
-    const approvalManagerEmail = category.requires_approval ? category.manager_email ?? null : null
+    let approvalOwnerId: number | null = null
+    let approvalManagerEmail: string | null = null
+
+    if (category.requires_approval) {
+      try {
+        const approvalManager = await getNextApprovalManager()
+        approvalOwnerId      = approvalManager.id
+        approvalManagerEmail = approvalManager.email
+      } catch {
+        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+        res.status(400).json({ success: false, message: 'No active managers available for approval.' }); return
+      }
+    }
 
     let newTicket: TicketRow | null = null
     for (let attempt = 1; attempt <= MAX_TICKET_ID_RETRIES; attempt++) {
@@ -198,10 +212,9 @@ async function listTickets(req: Request, res: Response): Promise<void> {
         priority, page: pageNum, limit: limitNum,
       })
     } else if (req.user.role === ROLES.MANAGER) {
-      const managedCategories = await categoryModel.findByManagerId(req.user.id)
-      const category_ids = managedCategories.map(c => c.id)
+      // Two-manager variant: managers see ALL tickets across all categories
       result = await ticketModel.findAll({
-        category_ids, status,
+        status,
         ticket_type_id: ticket_type_id ? Number(ticket_type_id) : undefined,
         priority, page: pageNum, limit: limitNum,
       })
@@ -384,10 +397,8 @@ async function canAccessTicket(user: Request['user'], ticket: TicketRow): Promis
   if (user.role === ROLES.ADMIN)                          return true
   if (Number(ticket.raised_by)   === Number(user.id))    return true
   if (Number(ticket.assigned_to) === Number(user.id))    return true
-  if (user.role === ROLES.MANAGER) {
-    const category = await categoryModel.findById(ticket.category_id)
-    return !!(category && Number(category.manager_id) === Number(user.id))
-  }
+  // Two-manager variant: any manager can view any ticket
+  if (user.role === ROLES.MANAGER)                       return true
   return false
 }
 
