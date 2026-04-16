@@ -11,7 +11,7 @@ INSERT INTO ticket_types (name, type_key) VALUES
   ('Data',      'data');
 
 -- ── Users ─────────────────────────────────────────────
-INSERT INTO users (emp_id, name, email, password_hash, role, department, password_changed_at) VALUES
+INSERT INTO users (emp_id, name, email, password_hash, role, team, password_changed_at) VALUES
   -- Admin
   ('EMP001', 'Admin User',   'admin@uiic.co.in',   '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'admin',   'IT', NOW()),
 

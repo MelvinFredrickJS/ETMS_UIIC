@@ -112,6 +112,12 @@ export interface TeamSummary {
 export const getTeams = () =>
   api.get<{ success: boolean; teams: TeamSummary[] }>('/categories/teams')
 
+export const createTeam = (data: { name: string; category_key?: string; manager_user_id: number }) =>
+  api.post<{ success: boolean; team: TeamSummary }>('/categories/teams', data)
+
+export const deleteTeam = (teamId: number) =>
+  api.delete<{ success: boolean; message: string }>(`/categories/teams/${teamId}`)
+
 // ── Assets ────────────────────────────────────────────────────────────────────
 
 export interface AssignmentHistory {
@@ -137,7 +143,7 @@ export const getMyAssets = () =>
 export interface EmployeeLookupResult {
   user: {
     id: number; emp_id: string; name: string; email: string
-    role: string; department: string | null; is_active: boolean
+    role: string; team: string | null; is_active: boolean
     category_name: string | null; created_at: string
   }
   assets: {

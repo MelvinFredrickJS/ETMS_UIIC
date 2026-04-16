@@ -21,7 +21,7 @@ async function create(input: CreateTicketInput): Promise<TicketRow> {
     `INSERT INTO tickets
        (ticket_no, title, description, ticket_type_id, category_id, priority,
         status, raised_by, approval_owner_id, asset_id, sla_days, sla_due_date, created_at, updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,'pending_approval',$7,$8,$9,$10,NOW() + ($10 * INTERVAL '1 day'),NOW(),NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,'pending_approval',$7,$8,$9,$10,NOW() + (($10::int) * INTERVAL '1 day'),NOW(),NOW())
      RETURNING *`,
     [ticket_no, title, description, ticket_type_id, category_id, priority,
      raised_by, approval_owner_id ?? null, asset_id ?? null, sla_days]
@@ -59,6 +59,7 @@ async function findById(id: number): Promise<TicketRow | null> {
 interface FindAllOptions {
   raised_by?: number
   assigned_to?: number
+  approval_owner_id?: number
   status?: string
   ticket_type_id?: number
   category_id?: number
@@ -70,7 +71,7 @@ interface FindAllOptions {
 
 async function findAll(options: FindAllOptions = {}): Promise<{ rows: TicketRow[]; total: number }> {
   const {
-    raised_by, assigned_to, status, ticket_type_id,
+    raised_by, assigned_to, approval_owner_id, status, ticket_type_id,
     category_id, category_ids, priority,
     page = 1, limit = 15
   } = options
@@ -86,6 +87,10 @@ async function findAll(options: FindAllOptions = {}): Promise<{ rows: TicketRow[
   if (assigned_to !== undefined && assigned_to !== null) {
     where.push(`t.assigned_to = $${idx++}`)
     params.push(assigned_to)
+  }
+  if (approval_owner_id !== undefined && approval_owner_id !== null) {
+    where.push(`t.approval_owner_id = $${idx++}`)
+    params.push(approval_owner_id)
   }
   if (category_id !== undefined && category_id !== null) {
     where.push(`t.category_id = $${idx++}`)

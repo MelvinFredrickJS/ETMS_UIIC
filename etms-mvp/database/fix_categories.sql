@@ -40,20 +40,20 @@ ON CONFLICT (type_key) DO NOTHING;
 -- Password hash = Password@123
 
 -- Update existing managers to spec emp_ids
-UPDATE users SET emp_id = 'MGR003', name = 'Hardware Manager',  email = 'mgr.hardware@uiic.co.in',  department = 'IT'
+UPDATE users SET emp_id = 'MGR003', name = 'Hardware Manager',  email = 'mgr.hardware@uiic.co.in',  team = 'IT'
   WHERE emp_id = 'MGR_HEALTH';
 
-UPDATE users SET emp_id = 'MGR001', name = 'Network Manager',   email = 'mgr.network@uiic.co.in',   department = 'IT'
+UPDATE users SET emp_id = 'MGR001', name = 'Network Manager',   email = 'mgr.network@uiic.co.in',   team = 'IT'
   WHERE emp_id = 'MGR_CUSTOMER_CARE';
 
-UPDATE users SET emp_id = 'MGR007', name = 'Hardware Req Mgr',  email = 'mgr.hwreq@uiic.co.in',     department = 'IT'
+UPDATE users SET emp_id = 'MGR007', name = 'Hardware Req Mgr',  email = 'mgr.hwreq@uiic.co.in',     team = 'IT'
   WHERE emp_id = 'MGR_R_D';
 
-UPDATE users SET emp_id = 'MGR004', name = 'GatePass Manager',  email = 'mgr.gatepass@uiic.co.in',  department = 'Security'
+UPDATE users SET emp_id = 'MGR004', name = 'GatePass Manager',  email = 'mgr.gatepass@uiic.co.in',  team = 'Security'
   WHERE emp_id = 'MGR_RTI';
 
 -- Insert the 6 missing spec managers
-INSERT INTO users (emp_id, name, email, password_hash, role, department, password_changed_at)
+INSERT INTO users (emp_id, name, email, password_hash, role, team, password_changed_at)
 VALUES
   ('MGR002','Software Manager','mgr.software@uiic.co.in','$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi','manager','IT',NULL),
   ('MGR005','Cred Manager',    'mgr.cred@uiic.co.in',    '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi','manager','IT',NULL),

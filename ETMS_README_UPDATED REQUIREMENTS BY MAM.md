@@ -62,16 +62,16 @@ A full-stack ticket management system for raising, approving, assigning, and res
 
 Each team is a `ticket_category` row in the DB. Every employee belongs to exactly one team (`users.category_id`).
 
-| Team Key         | Team Name      | Handles                                               |
-| ---------------- | -------------- | ----------------------------------------------------- |
-| `email_team`     | Email Team     | Email-related complaints & requests                   |
-| `vc_team`        | VC Team        | Video conferencing complaints                         |
-| `infra_team`     | Infra Team     | Hardware complaints, asset management, infra requests |
-| `network_team`   | Network Team   | Network complaints, port/ADID/SR requests             |
-| `security_team`  | Security Team  | Gate pass requests + ALL data/audit tickets           |
-| `sap_team`       | SAP Team       | SAP-related complaints & requests                     |
-| `gc_master_team` | GC Master Team | GC Master complaints & requests                       |
-| `reports_team`   | Reports Team   | Reports complaints & requests                         |
+| Team Key         | Team Name      | Icon / Color | Handles                                               |
+| ---------------- | -------------- | ------------ | ----------------------------------------------------- |
+| `email_team`     | Email Team     | 📧 Sky       | Email-related complaints & requests                   |
+| `vc_team`        | VC Team        | 🎥 Violet    | Video conferencing complaints                         |
+| `infra_team`     | Infra Team     | 🖥️ Emerald   | Hardware complaints, asset management, infra requests |
+| `network_team`   | Network Team   | 🌐 Blue      | Network complaints, port/ADID/SR requests             |
+| `security_team`  | Security Team  | 🛡️ Rose      | Gate pass requests + ALL data/audit tickets           |
+| `sap_team`       | SAP Team       | 📊 Amber     | SAP-related complaints & requests                     |
+| `gc_master_team` | GC Master Team | 🏛️ Indigo    | GC Master complaints & requests                       |
+| `reports_team`   | Reports Team   | 📈 Teal      | Reports complaints & requests                         |
 
 ---
 

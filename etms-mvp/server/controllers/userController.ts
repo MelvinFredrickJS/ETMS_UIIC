@@ -29,9 +29,9 @@ async function listUsers(req: Request, res: Response): Promise<void> {
 
 async function createUser(req: Request, res: Response): Promise<void> {
   try {
-    const { emp_id, name, email, password, role, category_id, department } = req.body as {
+    const { emp_id, name, email, password, role, category_id, team } = req.body as {
       emp_id?: string; name?: string; email?: string; password?: string
-      role?: string; category_id?: string; department?: string
+      role?: string; category_id?: string; team?: string
     }
 
     if (!emp_id || !name || !email || !password || !role) {
@@ -61,7 +61,7 @@ async function createUser(req: Request, res: Response): Promise<void> {
     const user = await userModel.create({
       emp_id, name, email, password_hash, role: role as Role,
       category_id: category_id ? Number(category_id) : null,
-      department:  department ?? null,
+      team: team ?? null,
     })
 
     // Auto-assign an unassigned asset via round-robin (employees only)

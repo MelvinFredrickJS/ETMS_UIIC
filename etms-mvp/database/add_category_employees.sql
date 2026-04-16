@@ -3,7 +3,7 @@
 
 BEGIN;
 
-INSERT INTO users (emp_id, name, email, password_hash, role, department, password_changed_at) VALUES
+INSERT INTO users (emp_id, name, email, password_hash, role, team, password_changed_at) VALUES
   -- network_issue
   ('EMP101','Network Tech One',   'net.tech1@uiic.co.in',    '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi','employee','IT',      NULL),
   ('EMP102','Network Tech Two',   'net.tech2@uiic.co.in',    '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi','employee','IT',      NULL),

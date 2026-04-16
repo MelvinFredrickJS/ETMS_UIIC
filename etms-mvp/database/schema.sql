@@ -24,7 +24,7 @@ CREATE TABLE users (
   password_hash       TEXT NOT NULL,
   role                user_role_enum NOT NULL,
   category_id         INTEGER,
-  department          VARCHAR(100),
+  team                VARCHAR(100),
   is_active           BOOLEAN DEFAULT TRUE,
   password_changed_at TIMESTAMPTZ,  -- NULL = requires forced password change on first login
   created_at          TIMESTAMPTZ DEFAULT NOW()

@@ -16,7 +16,7 @@ for col in required_cols:
     if col not in sheet.columns:
         raise SystemExit(f"Missing column: {col}")
 
-# Mapping: Department -> ticket type key
+# Mapping: Team -> ticket type key
 dept_to_type = {
     "HEALTH": "complaint",
     "R&D": "data",
@@ -57,7 +57,7 @@ for idx, row in sheet.iterrows():
     rows.append({
         "emp_id": emp_id,
         "name": user_name,
-        "department": dept_raw.title(),
+        "team": dept_raw.title(),
         "dept_key": slug(dept_raw),
         "ticket_type_key": dept_type,
         "model": model,
@@ -70,7 +70,7 @@ if not rows:
 categories = {}
 for r in rows:
     categories[r["dept_key"]] = {
-        "name": r["department"],
+        "name": r["team"],
         "key": r["dept_key"],
         "ticket_type_key": r["ticket_type_key"],
     }
@@ -86,7 +86,7 @@ for cat in cat_list:
         "emp_id": mgr_emp_id,
         "name": mgr_name,
         "email": mgr_email,
-        "department": cat["name"],
+        "team": cat["name"],
         "category_key": cat["key"],
     })
 
@@ -101,7 +101,7 @@ for r in rows:
         "emp_id": r["emp_id"],
         "name": r["name"],
         "email": email,
-        "department": r["department"],
+        "team": r["team"],
         "category_key": r["dept_key"],
     })
 
@@ -133,7 +133,7 @@ lines.append("  ('Complaint', 'complaint'),\n  ('Request', 'request'),\n  ('Data
 lines.append("")
 
 lines.append("-- ── Users ─────────────────────────────────────────────")
-lines.append("INSERT INTO users (emp_id, name, email, password_hash, role, department, password_changed_at) VALUES")
+lines.append("INSERT INTO users (emp_id, name, email, password_hash, role, team, password_changed_at) VALUES")
 
 user_rows = []
 user_rows.append("('EMP001', 'Admin User', 'admin@uiic.co.in', '{h}', 'admin', 'IT', NOW())".format(h=password_hash))
@@ -143,7 +143,7 @@ for m in managers:
         name=sql_str(m["name"]),
         email=sql_str(m["email"]),
         h=password_hash,
-        dept=sql_str(m["department"]),
+        dept=sql_str(m["team"]),
     ))
 for e in employees:
     user_rows.append("('{emp_id}', '{name}', '{email}', '{h}', 'employee', '{dept}', NULL)".format(
@@ -151,13 +151,13 @@ for e in employees:
         name=sql_str(e["name"]),
         email=sql_str(e["email"]),
         h=password_hash,
-        dept=sql_str(e["department"]),
+        dept=sql_str(e["team"]),
     ))
 
 lines.append("  " + ",\n  ".join(user_rows) + ";")
 lines.append("")
 
-lines.append("-- ── Ticket Categories (one per Department) ────────────")
+lines.append("-- ── Ticket Categories (one per Team) ────────────")
 lines.append("INSERT INTO ticket_categories (ticket_type_id, name, category_key, default_priority, manager_user_id, requires_approval)")
 lines.append("VALUES")
 cat_rows = []

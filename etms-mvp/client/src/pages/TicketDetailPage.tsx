@@ -67,7 +67,12 @@ export default function TicketDetailPage() {
 
   // Load employees for re-approve
   useEffect(() => {
-    if (ticket?.status === 'pending_approval' && ticket?.report_reason && user?.role === ROLES.MANAGER) {
+    if (
+      ticket?.status === 'pending_approval' &&
+      ticket?.report_reason &&
+      user?.role === ROLES.MANAGER &&
+      Number(ticket.approval_owner_id) === Number(user.id)
+    ) {
       getEmployeesByCategory(ticket.category_id)
         .then(({ data }) => setCategoryEmployees(data.employees))
         .catch(() => {})
@@ -110,6 +115,7 @@ export default function TicketDetailPage() {
   const isCreator  = Number(ticket.raised_by)   === Number(user.id)
   const isAssignee = Number(ticket.assigned_to) === Number(user.id)
   const isReapproval = ticket.status === 'pending_approval' && !!ticket.report_reason
+  const canManageApproval = user.role === ROLES.MANAGER && Number(ticket.approval_owner_id) === Number(user.id)
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -226,7 +232,7 @@ export default function TicketDetailPage() {
             )}
 
             {/* MANAGER — pending_approval (re-approval after escalation) */}
-            {user.role === ROLES.MANAGER && isReapproval && (
+            {canManageApproval && isReapproval && (
               <>
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
                   ⚠️ Escalated by employee: {ticket.report_reason}
@@ -257,7 +263,7 @@ export default function TicketDetailPage() {
             )}
 
             {/* MANAGER — pending_approval (first approval) */}
-            {user.role === ROLES.MANAGER && ticket.status === 'pending_approval' && !isReapproval && (
+            {canManageApproval && ticket.status === 'pending_approval' && !isReapproval && (
               <>
                 <div className="text-xs text-gray-500 space-y-1 mb-2">
                   <p><span className="font-medium">Category:</span> {ticket.category_name}</p>
@@ -275,6 +281,12 @@ export default function TicketDetailPage() {
                   ❌ Reject
                 </button>
               </>
+            )}
+
+            {user.role === ROLES.MANAGER && ticket.status === 'pending_approval' && !canManageApproval && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
+                This approval belongs to another manager.
+              </div>
             )}
 
             {/* EMPLOYEE / MANAGER — assigned */}

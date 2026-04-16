@@ -53,7 +53,7 @@ export default function NewTicketPage() {
       }))
       setAllTypes(typesWithIds)
 
-      // If pre-filling from asset report, find and set the hardware_issue category
+      // If pre-filling from asset report, find and set the hardware_complaint category
       if (prefill) {
         const type = typesWithIds.find(t => t.type_key === prefill.typeKey)
         const cat  = type?.categories.find(c => c.category_key === prefill.categoryKey)
@@ -62,9 +62,9 @@ export default function NewTicketPage() {
     }).catch(() => {})
   }, [])
 
-  // Load assets when hardware_issue selected (or pre-filled)
+  // Load assets when hardware_complaint selected (or pre-filled)
   useEffect(() => {
-    if (selectedCategory?.category_key === 'hardware_issue' || prefill?.categoryKey === 'hardware_issue') {
+    if (selectedCategory?.category_key === 'hardware_complaint' || prefill?.categoryKey === 'hardware_complaint') {
       getMyAssets().then(({ data }) => setMyAssets(data.assets)).catch(() => {})
     } else {
       setSelectedAsset(null)
@@ -84,7 +84,7 @@ export default function NewTicketPage() {
     e.preventDefault()
     setError('')
 
-    if (selectedCategory?.category_key === 'hardware_issue' && !selectedAsset) {
+    if (selectedCategory?.category_key === 'hardware_complaint' && !selectedAsset) {
       setError('Please select an asset for hardware issue tickets.')
       return
     }
@@ -99,7 +99,7 @@ export default function NewTicketPage() {
       fd.append('category_id',    String(selectedCategory.id))
       fd.append('priority',       priority)
       fd.append('sla_days',       String(slaDays))
-      if (selectedCategory.category_key === 'hardware_issue' && selectedAsset) {
+      if (selectedCategory.category_key === 'hardware_complaint' && selectedAsset) {
         fd.append('asset_id', String(selectedAsset.id))
       }
       if (file) fd.append('file', file)
@@ -163,16 +163,7 @@ export default function NewTicketPage() {
       {step === 1 && (
         <div>
           <p className="text-sm text-gray-500 mb-4">What kind of ticket do you want to raise?</p>
-          <TicketTypeSelector selectedType={selectedType} onSelect={key => { setSelectedType(key); setSelectedCategory(null) }} />
-          <div className="mt-6 flex justify-end">
-            <button
-              disabled={!selectedType}
-              onClick={() => setStep(2)}
-              className="bg-[#1B3A6B] text-white px-6 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-40 hover:bg-[#15305a] transition-colors"
-            >
-              Next →
-            </button>
-          </div>
+          <TicketTypeSelector selectedType={selectedType} onSelect={key => { setSelectedType(key); setSelectedCategory(null); setStep(2) }} />
         </div>
       )}
 
@@ -183,19 +174,12 @@ export default function NewTicketPage() {
           <CategorySelector
             categories={filteredCategories}
             selectedCategoryId={selectedCategory?.id ?? null}
-            onSelect={setSelectedCategory}
+            onSelect={category => { setSelectedCategory(category); setStep(3) }}
           />
-          <div className="mt-6 flex justify-between">
+          <div className="mt-6 flex justify-start">
             <button onClick={() => setStep(1)}
               className="border border-gray-300 text-gray-600 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50">
               ← Back
-            </button>
-            <button
-              disabled={!selectedCategory}
-              onClick={() => setStep(3)}
-              className="bg-[#1B3A6B] text-white px-6 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-40 hover:bg-[#15305a] transition-colors"
-            >
-              Next →
             </button>
           </div>
         </div>
@@ -266,8 +250,8 @@ export default function NewTicketPage() {
               />
             </div>
 
-            {/* Asset — hardware_issue only */}
-            {selectedCategory?.category_key === 'hardware_issue' && (
+            {/* Asset — hardware_complaint only */}
+            {selectedCategory?.category_key === 'hardware_complaint' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Asset * (required for hardware issue)</label>
                 <select

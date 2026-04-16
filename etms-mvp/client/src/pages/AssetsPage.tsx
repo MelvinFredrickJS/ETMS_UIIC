@@ -164,7 +164,7 @@ export default function AssetsPage() {
       state: {
         prefill: {
           typeKey:     'complaint',
-          categoryKey: 'hardware_issue',
+          categoryKey: 'hardware_complaint',
           asset,
         },
       },

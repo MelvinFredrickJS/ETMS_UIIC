@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
   getAllUsers, createUser, deleteUser, transferOwnership,
-  getTickets, getCategories,
+  getTickets, getCategories, getTeams,
   getAllAssets, getAssetHistory, updateAssetStatus, transferAsset,
-  getEmployeesByCategory, lookupEmployee, toggleUserActive, updateUserName, getTeams,
-  type AssignmentHistory, type EmployeeLookupResult,
+  getEmployeesByCategory, lookupEmployee, toggleUserActive, updateUserName,
+  type AssignmentHistory, type EmployeeLookupResult, type TeamSummary,
 } from '../api/ticketApi'
 import StatusBadge       from '../components/common/StatusBadge'
 import TypeBadge         from '../components/common/TypeBadge'
@@ -23,6 +23,17 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 ]
 const TYPE_OPTIONS    = [{ value:'', label:'All Types' },{ value:'complaint', label:'🔴 Complaint' },{ value:'request', label:'🔵 Request' },{ value:'data', label:'🟡 Data' }]
 const PRIORITY_OPTIONS= [{ value:'', label:'All Priorities' },{ value:'low', label:'Low' },{ value:'medium', label:'Medium' },{ value:'high', label:'High' },{ value:'critical', label:'Critical' }]
+const TEAM_ORDER = ['email_team', 'vc_team', 'infra_team', 'network_team', 'security_team', 'sap_team', 'gc_master_team', 'reports_team'] as const
+const TEAM_LABELS: Record<typeof TEAM_ORDER[number], string> = {
+  email_team: '📧 Email Team',
+  vc_team: '🎥 VC Team',
+  infra_team: '🖥️ Infra Team',
+  network_team: '🌐 Network Team',
+  security_team: '🛡️ Security Team',
+  sap_team: '📊 SAP Team',
+  gc_master_team: '🏛️ GC Master Team',
+  reports_team: '📈 Reports Team',
+}
 
 export default function AdminPage() {
   const navigate = useNavigate()
@@ -33,6 +44,7 @@ export default function AdminPage() {
   const [usersLoading, setUsersLoading] = useState(true)
   const [showAddForm,  setShowAddForm]  = useState(false)
   const [categories,   setCategories]   = useState<Category[]>([])
+  const [teams,        setTeams]        = useState<TeamSummary[]>([])
   const [typeGroups,   setTypeGroups]   = useState<TicketTypeGroup[]>([])
   const [toast,        setToast]        = useState('')
 
@@ -96,12 +108,12 @@ export default function AdminPage() {
   const [lookupResult,  setLookupResult]  = useState<EmployeeLookupResult | null>(null)
   const [lookupError,   setLookupError]   = useState('')
 
-  // Teams summary
-  const [teams, setTeams] = useState<Array<{ id: number; name: string; category_key: string; manager_name: string | null }>>([])
-  const [teamsLoading, setTeamsLoading] = useState(false)
-  const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null)
-  const [teamMembersById, setTeamMembersById] = useState<Record<number, Pick<User, 'id' | 'name' | 'emp_id' | 'email'>[]>>({})
-  const [teamMembersLoadingId, setTeamMembersLoadingId] = useState<number | null>(null)
+  const teamCategories = teams
+    .sort((left, right) => {
+      const leftIndex = TEAM_ORDER.indexOf(left.category_key as typeof TEAM_ORDER[number])
+      const rightIndex = TEAM_ORDER.indexOf(right.category_key as typeof TEAM_ORDER[number])
+      return (leftIndex === -1 ? 999 : leftIndex) - (rightIndex === -1 ? 999 : rightIndex)
+    })
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -113,40 +125,10 @@ export default function AdminPage() {
       setCategories(flat)
       setTypeGroups(data.types)
     }).catch(() => {})
-    loadTeams()
+    getTeams().then(({ data }) => {
+      setTeams(data.teams ?? [])
+    }).catch(() => {})
   }, [])
-
-  async function loadTeams() {
-    setTeamsLoading(true)
-    try {
-      const { data } = await getTeams()
-      setTeams(data.teams)
-    } catch {
-      setTeams([])
-    } finally {
-      setTeamsLoading(false)
-    }
-  }
-
-  async function toggleTeamMembers(teamId: number) {
-    if (expandedTeamId === teamId) {
-      setExpandedTeamId(null)
-      return
-    }
-
-    setExpandedTeamId(teamId)
-    if (teamMembersById[teamId]) return
-
-    setTeamMembersLoadingId(teamId)
-    try {
-      const { data } = await getEmployeesByCategory(teamId)
-      setTeamMembersById(prev => ({ ...prev, [teamId]: data.employees }))
-    } catch {
-      setTeamMembersById(prev => ({ ...prev, [teamId]: [] }))
-    } finally {
-      setTeamMembersLoadingId(null)
-    }
-  }
 
   async function loadUsers() {
     setUsersLoading(true)
@@ -193,7 +175,7 @@ export default function AdminPage() {
         emp_id: newEmpId, name: newName, email: newEmail,
         password: newPw, role: newRole as User['role'],
         category_id: newCatId ? Number(newCatId) : null,
-        department: newDept || null,
+        team: newDept || null,
       })
       const assetMsg = createData.auto_assigned_asset
         ? ` 🖥️ Auto-assigned: ${createData.auto_assigned_asset.name} (${createData.auto_assigned_asset.serial_number})`
@@ -421,14 +403,17 @@ export default function AdminPage() {
               </div>
               {(newRole === ROLES.EMPLOYEE || newRole === ROLES.MANAGER) && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Category *</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Team *</label>
                   <select required value={newCatId} onChange={e=>setNewCatId(e.target.value)} className={inputClass}>
-                    <option value="">Select…</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    <option value="">Select team…</option>
+                    {teamCategories.map(team => {
+                      const label = TEAM_LABELS[team.category_key as typeof TEAM_ORDER[number]] ?? team.name
+                      return <option key={team.id} value={team.id}>{label}</option>
+                    })}
                   </select>
                 </div>
               )}
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Department</label><input value={newDept} onChange={e=>setNewDept(e.target.value)} className={inputClass} /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Team</label><input value={newDept} onChange={e=>setNewDept(e.target.value)} className={inputClass} /></div>
               {addError && <p className="col-span-2 text-xs text-red-600">{addError}</p>}
               <div className="col-span-2 flex justify-end">
                 <button type="submit" disabled={addLoading}
@@ -495,8 +480,8 @@ export default function AdminPage() {
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-xs text-gray-500 mt-2">
                         <span><span className="font-medium text-gray-700">Emp ID:</span> {lu.emp_id}</span>
                         <span><span className="font-medium text-gray-700">Email:</span> {lu.email}</span>
-                        <span><span className="font-medium text-gray-700">Department:</span> {lu.department ?? '—'}</span>
-                        <span><span className="font-medium text-gray-700">Category:</span> {lu.category_name ?? '—'}</span>
+                        <span><span className="font-medium text-gray-700">Team:</span> {lu.team ?? '—'}</span>
+                        <span><span className="font-medium text-gray-700">Team:</span> {lu.category_name ?? '—'}</span>
                         <span><span className="font-medium text-gray-700">Open Tickets:</span> {ticket_stats.open}</span>
                         <span><span className="font-medium text-gray-700">Total Tickets:</span> {ticket_stats.total}</span>
                       </div>
@@ -537,70 +522,6 @@ export default function AdminPage() {
             })()}
           </div>
 
-          {/* Teams section */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-5">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-bold text-gray-800">🏷️ Teams</p>
-                <p className="text-xs text-gray-400">Click a team to reveal members</p>
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-[#1B3A6B]/10 text-[#1B3A6B] text-xs font-semibold">
-                {teams.length} team{teams.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {teamsLoading ? (
-              <div className="flex justify-center py-8"><div className="w-6 h-6 border-4 border-[#1B3A6B] border-t-transparent rounded-full animate-spin" /></div>
-            ) : teams.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4">No teams found.</p>
-            ) : (
-              <div className="space-y-2">
-                {teams.map(team => {
-                  const isOpen = expandedTeamId === team.id
-                  const members = teamMembersById[team.id] ?? []
-                  const isMembersLoading = teamMembersLoadingId === team.id
-
-                  return (
-                    <div key={team.id} className="border border-gray-100 rounded-lg overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => toggleTeamMembers(team.id)}
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="text-left">
-                          <p className="text-sm font-semibold text-gray-800">{team.name}</p>
-                          <p className="text-xs text-gray-500">
-                            Key: {team.category_key} {team.manager_name ? `· Manager: ${team.manager_name}` : ''}
-                          </p>
-                        </div>
-                        <span className="text-xs text-gray-500">{isOpen ? '▲ Hide' : '▼ Show members'}</span>
-                      </button>
-
-                      {isOpen && (
-                        <div className="px-4 pb-3 bg-gray-50 border-t border-gray-100">
-                          {isMembersLoading ? (
-                            <div className="py-3 text-xs text-gray-500">Loading members…</div>
-                          ) : members.length === 0 ? (
-                            <div className="py-3 text-xs text-gray-500">No members assigned.</div>
-                          ) : (
-                            <ul className="py-2 space-y-1">
-                              {members.map(member => (
-                                <li key={member.id} className="text-sm text-gray-700">
-                                  <span className="font-medium">{member.name}</span>
-                                  <span className="text-gray-500"> ({member.emp_id}) · {member.email}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
           {/* Users table */}
           {usersLoading ? (
             <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-[#1B3A6B] border-t-transparent rounded-full animate-spin" /></div>
@@ -608,7 +529,7 @@ export default function AdminPage() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>{['Emp ID','Name','Email','Role','Department','Status',''].map(h => (
+                  <tr>{['Emp ID','Name','Email','Role','Team','Status',''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">{h}</th>
                   ))}</tr>
                 </thead>
@@ -659,7 +580,7 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-500">{u.email}</td>
                       <td className="px-4 py-3 capitalize">{u.role}</td>
-                      <td className="px-4 py-3 text-gray-500">{u.department ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500">{u.team ?? '—'}</td>
                       <td className="px-4 py-3">
                         <button
                           onClick={() => handleToggleActive(u)}
@@ -709,7 +630,7 @@ export default function AdminPage() {
                 <input required value={aName} onChange={e => setAName(e.target.value)} className={inputClass} /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Serial Number *</label>
                 <input required value={aSerial} onChange={e => setASerial(e.target.value)} className={inputClass} /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Category *</label>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Team *</label>
                 <select required value={aCatId} onChange={e => setACatId(e.target.value)} className={inputClass}>
                   <option value="">Select…</option>
                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

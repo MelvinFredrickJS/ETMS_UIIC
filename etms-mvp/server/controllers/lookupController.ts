@@ -12,10 +12,10 @@ export async function lookupEmployee(req: Request, res: Response): Promise<void>
     // Try to find user by emp_id first, then by asset serial_number
     const { rows: byEmpId } = await pool.query<{
       id: number; emp_id: string; name: string; email: string
-      role: string; department: string | null; is_active: boolean
+      role: string; team: string | null; is_active: boolean
       category_name: string | null
     }>(
-      `SELECT u.id, u.emp_id, u.name, u.email, u.role, u.department, u.is_active,
+      `SELECT u.id, u.emp_id, u.name, u.email, u.role, u.team, u.is_active,
               tc.name AS category_name
        FROM users u
        LEFT JOIN ticket_categories tc ON u.category_id = tc.id
@@ -44,10 +44,10 @@ export async function lookupEmployee(req: Request, res: Response): Promise<void>
     // Fetch full user details
     const { rows: userRows } = await pool.query<{
       id: number; emp_id: string; name: string; email: string
-      role: string; department: string | null; is_active: boolean
+      role: string; team: string | null; is_active: boolean
       category_name: string | null; created_at: string
     }>(
-      `SELECT u.id, u.emp_id, u.name, u.email, u.role, u.department, u.is_active,
+      `SELECT u.id, u.emp_id, u.name, u.email, u.role, u.team, u.is_active,
               tc.name AS category_name, u.created_at
        FROM users u
        LEFT JOIN ticket_categories tc ON u.category_id = tc.id

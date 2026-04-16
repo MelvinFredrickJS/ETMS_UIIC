@@ -94,12 +94,12 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       asset_id = undefined
     }
 
+    const isAutoAssignedType = category.type_key === 'complaint' || category.type_key === 'data'
+
     let approvalOwnerId: number | null = null
     let approvalManagerEmail: string | null = null
 
-    const isDataTeamDataTicket = req.user.role === ROLES.DATA_TEAM && category.type_key === 'data'
-
-    if (category.requires_approval && !isDataTeamDataTicket) {
+    if (!isAutoAssignedType && category.requires_approval) {
       try {
         const approvalManager = await getApprovalManagerForCategory(category.id)
         approvalOwnerId      = approvalManager.id
@@ -175,7 +175,7 @@ async function createTicket(req: Request, res: Response): Promise<void> {
     let fullTicket = await ticketModel.findById(newTicket.id)
     const raiser   = await userModel.findById(newTicket.raised_by)
 
-    if (!category.requires_approval || isDataTeamDataTicket) {
+    if (isAutoAssignedType || !category.requires_approval) {
       let employee: Awaited<ReturnType<typeof getNextEmployeeInCategory>>
       try {
         employee = await getNextEmployeeInCategory(targetTeam.id)
@@ -187,7 +187,7 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       await ticketModel.logAction({ ticket_id: newTicket.id, action: 'APPROVED', old_status: 'pending_approval', new_status: 'approved', performed_by: null })
 
       await ticketModel.assign(newTicket.id, employee.id)
-      await ticketModel.logAction({ ticket_id: newTicket.id, action: 'AUTO_ASSIGNED', old_status: 'approved', new_status: 'assigned', performed_by: null, note: `Auto-assigned to ${employee.name}` })
+      await ticketModel.logAction({ ticket_id: newTicket.id, action: 'AUTO_ASSIGNED', old_status: 'approved', new_status: 'assigned', performed_by: null, note: `Auto-routed to ${targetTeam.name}; assigned to ${employee.name}` })
 
       fullTicket = await ticketModel.findById(newTicket.id)
 
@@ -231,8 +231,7 @@ async function listTickets(req: Request, res: Response): Promise<void> {
     if (req.user.role === ROLES.ADMIN) {
       result = await ticketModel.findAll(filters)
     } else if (req.user.role === ROLES.MANAGER) {
-      // Two-manager variant: managers see ALL tickets across all categories
-      result = await ticketModel.findAll(filters)
+      result = await ticketModel.findAll({ ...filters, approval_owner_id: req.user.id })
     } else if (req.user.role === ROLES.DATA_TEAM) {
       result = await ticketModel.findAll({ ...filters, raised_by: req.user.id })
     } else {
@@ -430,8 +429,7 @@ async function canAccessTicket(user: Request['user'], ticket: TicketRow): Promis
   if (Number(ticket.raised_by)   === Number(user.id))    return true
   if (Number(ticket.assigned_to) === Number(user.id))    return true
   if (user.role === ROLES.DATA_TEAM)                     return false
-  // Two-manager variant: any manager can view any ticket
-  if (user.role === ROLES.MANAGER)                       return true
+  if (user.role === ROLES.MANAGER)                       return Number(ticket.approval_owner_id) === Number(user.id)
   return false
 }
 

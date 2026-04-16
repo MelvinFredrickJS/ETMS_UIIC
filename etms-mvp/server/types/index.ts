@@ -23,7 +23,7 @@ export interface UserRow {
   email: string
   role: Role
   category_id: number | null
-  department: string | null
+  team: string | null
   is_active: boolean
   password_hash?: string
   password_changed_at?: string | null

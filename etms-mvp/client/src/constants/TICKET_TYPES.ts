@@ -37,6 +37,7 @@ export const TICKET_TYPE_COLORS: Record<TypeKey, TicketTypeConfig> = {
 export const CATEGORY_ICONS: Record<string, string> = {
   network_issue:      '🌐',
   software_issue:     '💻',
+  hardware_complaint: '🖥️',
   hardware_issue:     '🖥️',
   gate_pass:          '🪪',
   credential_request: '🔑',

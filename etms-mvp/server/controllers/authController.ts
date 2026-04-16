@@ -34,7 +34,7 @@ async function login(req: Request, res: Response): Promise<void> {
         name:       user.name,
         email:      user.email,
         role:       user.role,
-        department: user.department,
+        team: user.team,
         password_changed_at: user.password_changed_at,
       },
     })
@@ -56,7 +56,7 @@ async function me(req: Request, res: Response): Promise<void> {
         name:                user.name,
         email:               user.email,
         role:                user.role,
-        department:          user.department,
+        team:                user.team,
         category_id:         user.category_id,
         is_active:           user.is_active,
         password_changed_at: user.password_changed_at,

@@ -24,7 +24,7 @@ export interface User {
   name: string
   email: string
   role: Role
-  department: string | null
+  team: string | null
   category_id: number | null
   is_active: boolean
   password_changed_at: string | null

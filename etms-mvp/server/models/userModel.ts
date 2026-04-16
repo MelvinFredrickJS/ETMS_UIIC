@@ -9,7 +9,7 @@ async function findByEmail(email: string): Promise<UserRow | null> {
 
 async function findByEmpId(emp_id: string): Promise<UserRow | null> {
   const { rows } = await pool.query<UserRow>(
-    `SELECT id, emp_id, name, email, role, category_id, department, is_active
+    `SELECT id, emp_id, name, email, role, category_id, team, is_active
      FROM users WHERE emp_id = $1`,
     [emp_id]
   )
@@ -18,7 +18,7 @@ async function findByEmpId(emp_id: string): Promise<UserRow | null> {
 
 async function findById(id: number): Promise<UserRow | null> {
   const { rows } = await pool.query<UserRow>(
-    `SELECT id, emp_id, name, email, role, category_id, department, is_active
+    `SELECT id, emp_id, name, email, role, category_id, team, is_active
      FROM users WHERE id = $1`,
     [id]
   )
@@ -27,7 +27,7 @@ async function findById(id: number): Promise<UserRow | null> {
 
 async function findAll(): Promise<UserRow[]> {
   const { rows } = await pool.query<UserRow>(
-    `SELECT id, emp_id, name, email, role, category_id, department, is_active, created_at
+    `SELECT id, emp_id, name, email, role, category_id, team, is_active, created_at
      FROM users ORDER BY created_at DESC`
   )
   return rows
@@ -40,23 +40,23 @@ interface CreateUserInput {
   password_hash: string
   role: Role
   category_id: number | null
-  department: string | null
+  team: string | null
 }
 
 async function create(input: CreateUserInput): Promise<UserRow> {
-  const { emp_id, name, email, password_hash, role, category_id, department } = input
+  const { emp_id, name, email, password_hash, role, category_id, team } = input
   const { rows } = await pool.query<UserRow>(
-    `INSERT INTO users (emp_id, name, email, password_hash, role, category_id, department)
+    `INSERT INTO users (emp_id, name, email, password_hash, role, category_id, team)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, emp_id, name, email, role, category_id, department`,
-    [emp_id, name, email, password_hash, role, category_id ?? null, department ?? null]
+     RETURNING id, emp_id, name, email, role, category_id, team`,
+    [emp_id, name, email, password_hash, role, category_id ?? null, team ?? null]
   )
   return rows[0]
 }
 
 async function findByIdWithPassword(id: number): Promise<UserRow | null> {
   const { rows } = await pool.query<UserRow>(
-    `SELECT id, emp_id, name, email, role, category_id, department,
+    `SELECT id, emp_id, name, email, role, category_id, team,
             is_active, password_hash, password_changed_at
      FROM users WHERE id = $1`,
     [id]
@@ -69,7 +69,7 @@ async function updatePassword(id: number, password_hash: string): Promise<UserRo
     `UPDATE users
      SET password_hash = $2, password_changed_at = NOW()
      WHERE id = $1
-     RETURNING id, emp_id, name, email, role, category_id, department,
+     RETURNING id, emp_id, name, email, role, category_id, team,
                is_active, password_changed_at`,
     [id, password_hash]
   )
