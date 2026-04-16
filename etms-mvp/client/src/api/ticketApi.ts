@@ -65,6 +65,17 @@ export const createUser = (data: Partial<User> & { password?: string }) =>
 export const deleteUser = (id: number) =>
   api.delete<{ success: boolean; message: string }>(`/users/${id}`)
 
+export const toggleUserActive = (id: number) =>
+  api.patch<{ success: boolean; message: string; user: { id: number; emp_id: string; name: string; is_active: boolean } }>(
+    `/users/${id}/toggle-active`
+  )
+
+export const updateUserName = (id: number, name: string) =>
+  api.patch<{ success: boolean; user: { id: number; emp_id: string; name: string; role: string } }>(
+    `/users/${id}/name`,
+    { name }
+  )
+
 export const transferOwnership = (from_user_id: number, to_user_id: number) =>
   api.post<{ success: boolean }>('/users/transfer-ownership', { from_user_id, to_user_id })
 

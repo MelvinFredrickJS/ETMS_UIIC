@@ -5,7 +5,7 @@ import {
   getAllUsers, createUser, deleteUser, transferOwnership,
   getTickets, getCategories,
   getAllAssets, getAssetHistory, updateAssetStatus, transferAsset,
-  getEmployeesByCategory, lookupEmployee,
+  getEmployeesByCategory, lookupEmployee, toggleUserActive, updateUserName,
   type AssignmentHistory, type EmployeeLookupResult,
 } from '../api/ticketApi'
 import StatusBadge       from '../components/common/StatusBadge'
@@ -46,6 +46,11 @@ export default function AdminPage() {
   const [newDept,    setNewDept]    = useState('')
   const [addError,   setAddError]   = useState('')
   const [addLoading, setAddLoading] = useState(false)
+
+  // Inline name edit
+  const [editingUserId,   setEditingUserId]   = useState<number | null>(null)
+  const [editingName,     setEditingName]     = useState('')
+  const [editNameLoading, setEditNameLoading] = useState(false)
 
   // Delete modal
   const [deleteTarget,      setDeleteTarget]      = useState<User | null>(null)
@@ -110,6 +115,33 @@ export default function AdminPage() {
       setUsers(data.users)
     } catch { /* silent */ }
     finally { setUsersLoading(false) }
+  }
+
+  async function handleToggleActive(user: User) {
+    try {
+      const { data } = await toggleUserActive(user.id)
+      showToast(data.message)
+      loadUsers()
+    } catch (err: unknown) {
+      const msg = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message : undefined
+      showToast('❌ ' + (msg ?? 'Failed.'))
+    }
+  }
+
+  async function handleSaveName(userId: number) {
+    if (!editingName.trim()) return
+    setEditNameLoading(true)
+    try {
+      await updateUserName(userId, editingName)
+      showToast('Name updated.')
+      setEditingUserId(null)
+      loadUsers()
+    } catch (err: unknown) {
+      const msg = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message : undefined
+      showToast('❌ ' + (msg ?? 'Failed to update name.'))
+    } finally { setEditNameLoading(false) }
   }
 
   async function handleAddUser(e: React.FormEvent) {
@@ -480,14 +512,62 @@ export default function AdminPage() {
                   {users.map(u => (
                     <tr key={u.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-mono text-xs text-gray-500">{u.emp_id}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800">{u.name}</td>
+                      {/* Inline editable name */}
+                      <td className="px-4 py-3">
+                        {editingUserId === u.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              autoFocus
+                              value={editingName}
+                              onChange={e => setEditingName(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveName(u.id)
+                                if (e.key === 'Escape') setEditingUserId(null)
+                              }}
+                              className="border border-[#1B3A6B] rounded px-2 py-1 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+                            />
+                            <button
+                              onClick={() => handleSaveName(u.id)}
+                              disabled={editNameLoading}
+                              className="text-xs text-green-600 hover:text-green-800 font-semibold"
+                            >
+                              {editNameLoading ? '…' : '✓'}
+                            </button>
+                            <button
+                              onClick={() => setEditingUserId(null)}
+                              className="text-xs text-gray-400 hover:text-gray-600"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 group">
+                            <span className="font-medium text-gray-800">{u.name}</span>
+                            <button
+                              onClick={() => { setEditingUserId(u.id); setEditingName(u.name) }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-[#1B3A6B] transition-opacity ml-1"
+                              title="Edit name"
+                            >
+                              ✏️
+                            </button>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-gray-500">{u.email}</td>
                       <td className="px-4 py-3 capitalize">{u.role}</td>
                       <td className="px-4 py-3 text-gray-500">{u.department ?? '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                          {u.is_active ? 'Active' : 'Inactive'}
-                        </span>
+                        <button
+                          onClick={() => handleToggleActive(u)}
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold cursor-pointer transition-colors ${
+                            u.is_active
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-red-100 text-red-600 hover:bg-red-200'
+                          }`}
+                          title={u.is_active ? 'Click to deactivate' : 'Click to reactivate'}
+                        >
+                          {u.is_active ? '✅ Active' : '🚫 Inactive'}
+                        </button>
                       </td>
                       <td className="px-4 py-3">
                         <button onClick={() => { setDeleteTarget(u); setDeleteConfirmName(''); setTransferTo(''); setDeleteError('') }}

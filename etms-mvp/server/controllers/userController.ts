@@ -209,4 +209,63 @@ async function changePassword(req: Request, res: Response): Promise<void> {
   }
 }
 
-export { listUsers, createUser, deleteUser, transferOwnership, changePassword }
+async function toggleUserActive(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = Number(req.params.id)
+    if (!userId) { res.status(400).json({ success: false, message: 'Invalid user ID.' }); return }
+
+    const target = await userModel.findById(userId)
+    if (!target) { res.status(404).json({ success: false, message: 'User not found.' }); return }
+
+    if (userId === req.user.id) {
+      res.status(400).json({ success: false, message: 'You cannot deactivate your own account.' }); return
+    }
+
+    const pool = (await import('../config/db')).default
+    const { rows } = await pool.query<{ id: number; emp_id: string; name: string; is_active: boolean }>(
+      `UPDATE users SET is_active = NOT is_active WHERE id = $1 RETURNING id, emp_id, name, is_active`,
+      [userId]
+    )
+
+    const updated = rows[0]
+    res.status(200).json({
+      success: true,
+      message: updated.is_active ? 'User reactivated.' : 'User deactivated.',
+      user: updated,
+    })
+  } catch (err) {
+    console.error('toggleUserActive error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+async function updateUserName(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = Number(req.params.id)
+    if (!userId) { res.status(400).json({ success: false, message: 'Invalid user ID.' }); return }
+
+    const { name } = req.body as { name?: string }
+    if (!name || !name.trim()) {
+      res.status(400).json({ success: false, message: 'Name is required.' }); return
+    }
+    if (name.trim().length > 100) {
+      res.status(400).json({ success: false, message: 'Name must be 100 characters or less.' }); return
+    }
+
+    const target = await userModel.findById(userId)
+    if (!target) { res.status(404).json({ success: false, message: 'User not found.' }); return }
+
+    const pool = (await import('../config/db')).default
+    const { rows } = await pool.query<{ id: number; emp_id: string; name: string; role: string }>(
+      `UPDATE users SET name = $2 WHERE id = $1 RETURNING id, emp_id, name, role`,
+      [userId, name.trim()]
+    )
+
+    res.status(200).json({ success: true, user: rows[0] })
+  } catch (err) {
+    console.error('updateUserName error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+export { listUsers, createUser, deleteUser, transferOwnership, changePassword, toggleUserActive, updateUserName }

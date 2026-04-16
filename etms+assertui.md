@@ -43,8 +43,10 @@ CATEGORIES
   GET    /api/categories/:categoryId/employees   protect + requireRole(ADMIN, MANAGER)
 
 ASSETS
+  GET    /api/assets                       protect + requireRole(ADMIN, MANAGER)
   GET    /api/assets/my                    protect + requireRole(EMPLOYEE, MANAGER)
   GET    /api/assets/:id                   protect
+  GET    /api/assets/:id/history           protect + requireRole(ADMIN, MANAGER)
   POST   /api/assets                       protect + requireRole(ADMIN)
   PATCH  /api/assets/:id/status            protect + requireRole(ADMIN, MANAGER)
   POST   /api/assets/:id/transfer          protect + requireRole(ADMIN, MANAGER)
@@ -72,6 +74,11 @@ USERS
   DELETE /api/users/:id                    protect + requireRole(ADMIN)
   POST   /api/users/transfer-ownership     protect + requireRole(ADMIN)
   PATCH  /api/users/change-password        protect
+  PATCH  /api/users/:id/toggle-active      protect + requireRole(ADMIN)
+  PATCH  /api/users/:id/name               protect + requireRole(ADMIN)
+
+LOOKUP
+  GET    /api/lookup/employee?q=           protect + requireRole(ADMIN)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTROLLER CONTRACT (REQUIRED METHODS)
@@ -100,8 +107,10 @@ categoryController.js
   getEmployeesByCategory(req,res)
 
 assetController.js
+  getAllAssets(req,res)         ← NEW — admin/manager sees all assets
   getMyAssets(req,res)
   getAssetById(req,res)
+  getAssetHistory(req,res)     ← NEW — full transfer history per asset
   createAsset(req,res)
   updateAssetStatus(req,res)
   transferAsset(req,res)
@@ -112,6 +121,11 @@ userController.js
   deleteUser(req,res)
   transferOwnership(req,res)
   changePassword(req,res)
+  toggleUserActive(req,res)    ← NEW — deactivate/reactivate user
+  updateUserName(req,res)      ← NEW — inline name edit
+
+lookupController.js            ← NEW
+  lookupEmployee(req,res)      — search by emp_id or asset serial_number
 
 reportController.js
   getTopFailingDevices(req,res)
@@ -1052,14 +1066,15 @@ TRANSITIONS (who can do what):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TECH STACK
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Frontend : React 18 + Vite + Tailwind CSS
-Backend  : Node.js 18 + Express.js
+Frontend : React 18 + Vite + TypeScript (strict: true) + Tailwind CSS
+Backend  : Node.js 18 + Express.js + TypeScript (strict: true)
 Database : PostgreSQL   (pg library, NO ORM, plain SQL only)
 Auth     : JWT access token (1h) stored in sessionStorage (per-tab isolation)
 Password : bcrypt (rounds = 10)
 Forced PW Change : First login requires password change via ChangePasswordPage
 Files    : Multer — single file, max 5MB, allowed: pdf/doc/docx/png/jpg
 Email    : Nodemailer — use Ethereal for local dev (auto test account)
+TypeCheck: tsc --noEmit (both client and server, strict: true)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ABSOLUTE CODING RULES
@@ -1070,12 +1085,14 @@ ABSOLUTE CODING RULES
 4. All routes except POST /auth/login need JWT protect middleware
 5. Role checks use requireRole() middleware factory
 6. generateTicketId() must use 'C' for complaint, 'R' for request, 'D' for data
-7. Status transition logic lives ONLY in utils/ticketTransitions.js — never inline in controller
+7. Status transition logic lives ONLY in utils/ticketTransitions.ts — never inline in controller
 8. All API responses use { success: true/false, ...data } shape — no bare { message } responses
-9. Never use role strings directly in SQL — use ROLES constant from server/constants/ROLES.js
+9. Never use role strings directly in SQL — use ROLES constant from server/constants/ROLES.ts
 10. File naming uses sanitized safe filename — never raw originalname directly
-11. Round-robin assignment logic lives ONLY in services/assignmentService.js
+11. Round-robin assignment logic lives ONLY in services/assignmentService.ts
 12. Admin role can NEVER call approve, reject, assign, or updateStatus endpoints
+13. TypeScript strict: true on both frontend and backend — no any types without explicit cast
+14. Department column from Excel is intentionally not mapped to categories
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FOLDER STRUCTURE
@@ -1084,88 +1101,108 @@ etms-mvp/
 ├── client/
 │   ├── src/
 │   │   ├── api/
-│   │   │   ├── axiosInstance.js
-│   │   │   ├── authApi.js
-│   │   │   └── ticketApi.js
+│   │   │   ├── axiosInstance.ts    ← TypeScript
+│   │   │   ├── authApi.ts          ← TypeScript
+│   │   │   └── ticketApi.ts        ← TypeScript (all ticket, asset, user, approval, lookup APIs)
 │   │   ├── components/
+│   │   │   ├── admin/
+│   │   │   │   └── CategoryOrgGraph.tsx   ← NEW (SVG org graph)
 │   │   │   ├── common/
-│   │   │   │   ├── StatusBadge.jsx
-│   │   │   │   ├── PriorityBadge.jsx
-│   │   │   │   └── TypeBadge.jsx
+│   │   │   │   ├── StatusBadge.tsx
+│   │   │   │   ├── PriorityBadge.tsx
+│   │   │   │   └── TypeBadge.tsx
 │   │   │   ├── layout/
-│   │   │   │   ├── Sidebar.jsx
-│   │   │   │   └── AppLayout.jsx
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   └── AppLayout.tsx
 │   │   │   └── tickets/
-│   │   │       ├── TicketTypeSelector.jsx
-│   │   │       ├── CategorySelector.jsx
-│   │   │       └── TicketCard.jsx
+│   │   │       ├── TicketTypeSelector.tsx
+│   │   │       ├── CategorySelector.tsx
+│   │   │       └── TicketCard.tsx          ← Status-coloured cards
 │   │   ├── context/
-│   │   │   └── AuthContext.jsx
+│   │   │   └── AuthContext.tsx
 │   │   ├── pages/
-│   │   │   ├── LoginPage.jsx
-│   │   │   ├── ChangePasswordPage.jsx
-│   │   │   ├── DashboardPage.jsx
-│   │   │   ├── NewTicketPage.jsx
-│   │   │   ├── TicketsPage.jsx
-│   │   │   ├── TicketDetailPage.jsx
-│   │   │   ├── PendingApprovalsPage.jsx    ← NEW (manager approval queue)
-│   │   │   └── AdminPage.jsx
+│   │   │   ├── LoginPage.tsx
+│   │   │   ├── ChangePasswordPage.tsx
+│   │   │   ├── DashboardPage.tsx
+│   │   │   ├── NewTicketPage.tsx           ← Supports pre-fill from AssetsPage
+│   │   │   ├── TicketsPage.tsx
+│   │   │   ├── TicketDetailPage.tsx
+│   │   │   ├── PendingApprovalsPage.tsx    ← Re-approval distinct styling
+│   │   │   ├── AssetsPage.tsx              ← NEW (employee cards + manager table)
+│   │   │   └── AdminPage.tsx               ← 3 tabs: Users | Assets | All Tickets
+│   │   ├── types/
+│   │   │   └── index.ts                    ← NEW (User, Ticket, Asset, Category, etc.)
 │   │   ├── constants/
-│   │   │   ├── ROLES.js
-│   │   │   ├── TICKET_STATUS.js
-│   │   │   ├── PRIORITY.js
-│   │   │   └── TICKET_TYPES.js
-│   │   ├── App.jsx
-│   │   └── main.jsx
+│   │   │   ├── ROLES.ts
+│   │   │   ├── TICKET_STATUS.ts
+│   │   │   ├── PRIORITY.ts
+│   │   │   └── TICKET_TYPES.ts
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   └── vite-env.d.ts
 │   ├── index.html
+│   ├── tsconfig.json
+│   ├── tsconfig.node.json
+│   ├── vite.config.ts
 │   └── package.json
 │
 ├── server/
 │   ├── config/
-│   │   ├── db.js
-│   │   └── mailer.js
-│   ├── middleware/
-│   │   ├── authMiddleware.js
-│   │   ├── roleMiddleware.js
-│   │   └── uploadMiddleware.js
-│   ├── models/
-│   │   ├── userModel.js
-│   │   ├── ticketModel.js
-│   │   ├── categoryModel.js
-│   │   ├── assetModel.js          ← NEW
-│   │   └── reportModel.js         ← NEW
-│   ├── routes/
-│   │   ├── authRoutes.js
-│   │   ├── ticketRoutes.js
-│   │   ├── approvalRoutes.js       ← NEW
-│   │   ├── categoryRoutes.js
-│   │   ├── assetRoutes.js          ← NEW
-│   │   ├── userRoutes.js
-│   │   └── reportRoutes.js         ← NEW
-│   ├── controllers/
-│   │   ├── authController.js
-│   │   ├── ticketController.js
-│   │   ├── approvalController.js   ← NEW (manager approve/reject/reapprove)
-│   │   ├── categoryController.js
-│   │   ├── assetController.js      ← NEW
-│   │   ├── userController.js
-│   │   └── reportController.js     ← NEW
-│   ├── services/
-│   │   ├── emailService.js
-│   │   └── assignmentService.js    ← NEW (round-robin employee assignment)
-│   ├── utils/
-│   │   ├── generateTicketId.js
-│   │   ├── jwtUtils.js
-│   │   ├── ticketTransitions.js
-│   │   └── sanitizeFilename.js
+│   │   ├── db.ts
+│   │   └── mailer.ts
 │   ├── constants/
-│   │   └── ROLES.js
-│   ├── app.js
-│   └── server.js
+│   │   └── ROLES.ts
+│   ├── middleware/
+│   │   ├── authMiddleware.ts
+│   │   ├── roleMiddleware.ts
+│   │   └── uploadMiddleware.ts
+│   ├── models/
+│   │   ├── userModel.ts
+│   │   ├── ticketModel.ts
+│   │   ├── categoryModel.ts
+│   │   ├── assetModel.ts
+│   │   └── reportModel.ts
+│   ├── routes/
+│   │   ├── authRoutes.ts
+│   │   ├── ticketRoutes.ts
+│   │   ├── approvalRoutes.ts
+│   │   ├── categoryRoutes.ts
+│   │   ├── assetRoutes.ts
+│   │   ├── userRoutes.ts
+│   │   ├── reportRoutes.ts
+│   │   └── lookupRoutes.ts             ← NEW
+│   ├── controllers/
+│   │   ├── authController.ts
+│   │   ├── ticketController.ts
+│   │   ├── approvalController.ts
+│   │   ├── categoryController.ts
+│   │   ├── assetController.ts
+│   │   ├── userController.ts
+│   │   ├── reportController.ts
+│   │   └── lookupController.ts         ← NEW
+│   ├── services/
+│   │   ├── emailService.ts
+│   │   ├── assignmentService.ts
+│   │   └── managerAssignmentService.ts ← NEW (two-manager branch only)
+│   ├── types/
+│   │   ├── index.ts                    ← NEW (UserRow, TicketRow, AssetRow, etc.)
+│   │   └── express.d.ts                ← NEW (extends Express.Request with req.user)
+│   ├── utils/
+│   │   ├── generateTicketId.ts
+│   │   ├── jwtUtils.ts
+│   │   ├── ticketTransitions.ts
+│   │   └── sanitizeFilename.ts
+│   ├── app.ts
+│   ├── server.ts
+│   ├── tsconfig.json
+│   └── package.json
 │
 ├── database/
 │   ├── schema.sql
-│   └── seed.sql
+│   ├── seed.sql                        ← Updated: 10 spec categories, 2 employees per category
+│   ├── seed_two_managers.sql           ← NEW (two-manager variant)
+│   ├── fix_categories.sql              ← NEW (migration: replaces custom categories)
+│   └── add_category_employees.sql      ← NEW (adds 2 employees per non-hardware category)
 │
 ├── uploads/
 ├── .env.example
@@ -3487,23 +3524,29 @@ Route: /approvals
 Access: ROLES.MANAGER only — redirect to /dashboard if not manager
 
 Page header: "Pending Approvals"
-Sub-heading: "Tickets awaiting your review"
+Sub-heading: "Tickets awaiting your review" + escalated count badge if any
 
 Fetch: GET /api/approvals/pending
 Shows all tickets with status='pending_approval' where the
 ticket's category manager is the logged-in user.
 
-Display as a list of approval cards. Each card shows:
-  - TypeBadge + PriorityBadge (top row)
-  - ticket_no in monospace grey
-  - title in bold
-  - category_name + raised_by_name + time ago
-  - If report_reason is set: yellow banner "⚠️ Escalated — {note}"
-  - Two action buttons inline on the card:
-      "✅ Approve" (green) → approveTicket(id) → refetch list
-      "❌ Reject"  (red)  → opens rejection modal
+Page splits into TWO sections:
 
-Rejection modal:
+  SECTION 1 — Re-Approvals (escalated tickets with report_reason set):
+    Header: "🔁 Re-Approvals — Escalated by Employee"
+    Card style: orange background (bg-orange-50), thick orange left accent stripe,
+                double border (border-2 border-orange-300)
+    Top badge: "🔁 RE-APPROVAL" in solid orange
+    Escalation reason shown in white inset card with employee's words in italics
+    Action button: "🔁 Re-Approve & Assign" (orange) → approveTicket(id)
+    Reject button: still available (white bg, red text)
+
+  SECTION 2 — New Approvals (first-time, no report_reason):
+    Header: "📋 New Approvals" (only shown when both sections present)
+    Card style: white bg, gray border (standard)
+    Action buttons: "✅ Approve" (green) + "❌ Reject" (red)
+
+Rejection modal (shared):
   Title: "Reject Ticket {ticket_no}"
   Textarea: "Reason for rejection" (required, min 10 chars)
   Buttons: "Cancel" + "Reject Ticket" (red)
@@ -3543,20 +3586,33 @@ Post-transfer UI expectations:
 
 ━━━ AdminPage.jsx ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Page header: "Admin Panel"
-Two tabs: "👥 Users" | "📋 All Tickets"
+THREE tabs: "👥 Users" | "�️ Assets" | "�📋 All Tickets"
 
 USERS TAB:
-  Table: Emp ID | Name | Email | Role | Department | Status
+  Table: Emp ID | Name (inline editable ✏️) | Email | Role | Department | Status (toggle) | Delete
   Fetch getAllUsers() on mount.
   "Add User" button (top-right) → toggles inline form below header:
     Fields: Emp ID*, Name*, Email*, Password*, Role (select)*,
             Category (select; required when role is employee/manager), Department (optional)
     Role options: employee | manager | admin
     Submit → createUser(data) → refresh list → show success toast
+    Auto-assigns unassigned asset via round-robin on employee creation.
+  Inline name edit:
+    Hover any row → ✏️ pencil icon appears next to name
+    Click → input field with Enter to save / Escape to cancel
+    Calls PATCH /api/users/:id/name
+  Toggle active:
+    Status column is a clickable pill: ✅ Active / 🚫 Inactive
+    Click → PATCH /api/users/:id/toggle-active → toast confirmation
+    Prevents self-deactivation
   Delete flow:
     Clicking Delete opens a dedicated "Permanent Delete User" modal.
     If user has ticket ownership references, modal requires transfer first.
     Permanent delete button enabled only after typing the exact user name.
+  Employee Lookup:
+    Search by emp_id or asset serial_number
+    Returns: user profile, all assigned assets with specs, open/total ticket counts
+    Calls GET /api/lookup/employee?q=
 
   ━━━ Category Org Graph (Manage Users — Admin only) ━━━━━━━━━
   Place this section BELOW the users table and ABOVE the Add User form,
@@ -3889,8 +3945,19 @@ Audit updated: 2026-04-06 (workflow redesign — manager approval + round-robin)
 - [ ] `GET /api/tickets` scoping: employee supports raised and assigned views, manager=category queue, admin=all
 - [ ] `GET /api/tickets/:id/allowed-statuses` returns correct options per role
 - [ ] Admin cannot call approve, reject, reapprove, or updateStatus endpoints (403)
-- [ ] All 7 email triggers implemented in emailService.js
+- [ ] All 7 email triggers implemented in emailService.ts
 - [ ] API responses consistently use { success: true/false } shape
+- [ ] `GET /api/assets` returns all assets for admin, category-scoped for manager
+- [ ] `GET /api/assets/:id/history` returns full transfer timeline with from/to/by names
+- [ ] `PATCH /api/users/:id/toggle-active` toggles is_active, blocks self-deactivation
+- [ ] `PATCH /api/users/:id/name` updates user name (admin only, max 100 chars)
+- [ ] `GET /api/lookup/employee?q=` searches by emp_id or serial_number (case-insensitive)
+- [ ] Lookup returns: user profile, all assigned assets, open/total ticket counts
+- [ ] Round-robin auto-assign asset on new employee creation (non-fatal if no unassigned asset)
+- [ ] TypeScript strict: true — both server and client compile with zero errors
+- [ ] `server/types/index.ts` defines UserRow, TicketRow, AssetRow, CategoryRow, etc.
+- [ ] `server/types/express.d.ts` extends Express.Request with typed req.user
+- [ ] `client/src/types/index.ts` defines User, Ticket, Asset, Category, TicketLog, Attachment
 
 ### 🎨 Frontend
 
@@ -3899,28 +3966,35 @@ Audit updated: 2026-04-06 (workflow redesign — manager approval + round-robin)
 - [ ] `/assets` route exists and is protected to EMPLOYEE and MANAGER only (admin uses Admin Panel)
 - [ ] `AssetsPage.jsx` exists at `client/src/pages/AssetsPage.jsx`
 - [ ] Employee view of AssetsPage fetches `GET /api/assets/my` and renders asset cards (read-only)
+- [ ] Employee asset cards have "🚨 Report Issue" button → pre-fills NewTicketPage (complaint, hardware_issue, asset pre-selected)
 - [ ] Manager view of AssetsPage fetches all assets scoped to their categories
-- [ ] Manager asset table shows Change Status and Transfer actions
+- [ ] Manager asset table shows Change Status, Transfer, History, Report Issue actions
 - [ ] AdminPage has THREE tabs: "👥 Users" | "🖥️ Assets" | "📋 All Tickets"
 - [ ] Admin Assets tab fetches all assets (GET /api/assets) with Add Asset form
 - [ ] Admin Assets tab table shows: Serial No | Name | Category | Assigned To | Status | Actions
-- [ ] Admin Assets tab has status filter and category filter
+- [ ] Admin Assets tab has assignment filter: All / 🔗 Assigned / 🔓 Free
 - [ ] Admin can create asset via POST /api/assets (admin only)
 - [ ] Admin and manager can change asset status via PATCH /api/assets/:id/status
 - [ ] Transfer Asset modal accessible from Admin Assets tab and Manager AssetsPage
-- [ ] `ROLES.js` has MANAGER constant
-- [ ] `TICKET_STATUS.js` has PENDING_APPROVAL, APPROVED, REJECTED — no RAISED
+- [ ] Asset history drawer shows full transfer timeline per asset
+- [ ] Admin Users tab: Name column is inline editable (✏️ hover → input → Enter to save)
+- [ ] Admin Users tab: Status column is clickable toggle (✅ Active / 🚫 Inactive)
+- [ ] Admin Users tab: Employee Lookup panel (search by emp_id or serial_number)
+- [ ] Admin Users tab: Category Org Graph (SVG, filter by type, hover tooltip, click to highlight)
+- [ ] `ROLES.ts` has MANAGER constant (TypeScript)
+- [ ] `TICKET_STATUS.ts` has PENDING_APPROVAL, APPROVED, REJECTED — no RAISED
 - [ ] `STATUS_COLORS` has entries for all 8 statuses
-- [ ] `ticketApi.js` has getPendingApprovals, approveTicket, rejectTicket, reapproveTicket
-- [ ] `ticketApi.js` includes getMyAssets() for asset dropdown in ticket form
-- [ ] `ticketApi.js` includes transferAsset(assetId, { to_user_id, note }) for admin/manager transfer flow
-- [ ] `ticketApi.js` does NOT export assignTicket (removed) — CODE REVIEW GATE: fail review if `assignTicket` appears in exports/imports/call sites
-- [ ] Verification step: repo search for `assignTicket` returns zero project matches (excluding historical docs)
+- [ ] `ticketApi.ts` has getPendingApprovals, approveTicket, rejectTicket, reapproveTicket
+- [ ] `ticketApi.ts` has toggleUserActive, updateUserName, lookupEmployee
+- [ ] `ticketApi.ts` includes getMyAssets() for asset dropdown in ticket form
+- [ ] `ticketApi.ts` includes transferAsset(assetId, { to_user_id, note }) for admin/manager transfer flow
+- [ ] `ticketApi.ts` does NOT export assignTicket (removed) — CODE REVIEW GATE
+- [ ] Verification step: repo search for `assignTicket` returns zero project matches
 - [ ] Sidebar shows "Pending Approvals" link only for MANAGER role
 - [ ] Sidebar shows "Raise Ticket" for EMPLOYEE and MANAGER only (not ADMIN)
 - [ ] /approvals route exists and is protected to MANAGER only
-- [ ] PendingApprovalsPage fetches GET /api/approvals/pending
-- [ ] PendingApprovalsPage shows report reason banner for reported tickets
+- [ ] PendingApprovalsPage splits into Re-Approvals (orange cards) and New Approvals (white cards)
+- [ ] Re-approval cards: orange bg, thick left stripe, 🔁 RE-APPROVAL badge, escalation reason inset
 - [ ] PendingApprovalsPage approve flow: approveTicket() → success toast → refetch
 - [ ] PendingApprovalsPage reject flow: modal with required textarea → rejectTicket()
 - [ ] TicketDetailPage manager block: Approve + Reject buttons when pending_approval (first time)
@@ -3928,6 +4002,7 @@ Audit updated: 2026-04-06 (workflow redesign — manager approval + round-robin)
 - [ ] TicketDetailPage admin block: grey "view-only" card — no action buttons
 - [ ] TicketDetailPage employee block: "Report Issue" opens modal with reason textarea for assigned tickets and resolved-ticket disputes
 - [ ] NewTicketPage shows asset selector for hardware_issue category only
+- [ ] NewTicketPage supports pre-fill from AssetsPage (skips to Step 3 with type/category/asset pre-set)
 - [ ] Asset dropdown shows only logged-in user's assets with serial number labels
 - [ ] Asset detail/admin view provides transfer action for admin/manager roles
 - [ ] Transfer modal enforces client-side guards (under_repair blocked, same-owner blocked) before API call
@@ -3986,6 +4061,18 @@ Audit updated: 2026-04-06 (workflow redesign — manager approval + round-robin)
 - [ ] Manager re-approves escalated ticket → picks specific employee → 3 emails sent
 - [ ] Admin logs in → can view all tickets → CANNOT see approve/assign buttons → 403 on API if tried
 - [ ] New employee user creation → forced password change on first login
+
+### 🌿 Two-Manager Branch (`feat/two-manager-approval`)
+
+- [ ] Branch exists: `feat/two-manager-approval`
+- [ ] Database: `uiicdb_two_mgr` (separate from main `uiicdb`)
+- [ ] `managerAssignmentService.ts` — round-robin between 2 global managers (least pending approvals)
+- [ ] `ticketController.ts` — approval_owner_id set via `getNextApprovalManager()` not category.manager_id
+- [ ] `ticketController.ts` — managers see ALL tickets (not scoped to category)
+- [ ] `ticketController.ts` — `canAccessTicket` allows any manager to view any ticket
+- [ ] `seed_two_managers.sql` — 2 managers (MGR_INFRA / MGR_NETWORK), 2 employees per category
+- [ ] Manager names are inline editable in Admin Panel
+- [ ] Login: mgr.infra@uiic.co.in / mgr.network@uiic.co.in (Password@123)
 
 ### ⚠️ Known Follow-ups
 
