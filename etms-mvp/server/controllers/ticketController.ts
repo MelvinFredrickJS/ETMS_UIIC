@@ -11,7 +11,7 @@ import * as assetModel from '../models/assetModel'
 import * as userModel from '../models/userModel'
 import * as emailService from '../services/emailService'
 import { getNextEmployeeInCategory } from '../services/assignmentService'
-import { getNextApprovalManager } from '../services/managerAssignmentService'
+import { getApprovalManagerForCategory } from '../services/managerAssignmentService'
 import type { TicketRow, TicketStatus, Role } from '../types'
 
 const MAX_TICKET_ID_RETRIES = 3
@@ -21,9 +21,10 @@ async function createTicket(req: Request, res: Response): Promise<void> {
   try {
     const { title, description, ticket_type_id, category_id, priority } = req.body as {
       title?: string; description?: string; ticket_type_id?: string
-      category_id?: string; priority?: string; asset_id?: string
+      category_id?: string; priority?: string; asset_id?: string; sla_days?: string
     }
     let { asset_id } = req.body as { asset_id?: string }
+    const slaDays = Math.min(30, Math.max(1, Number(req.body.sla_days ?? 3)))
     const PRIORITY_VALUES = ['low', 'medium', 'high', 'critical']
 
     if (!title || !description || !ticket_type_id || !category_id || !priority) {
@@ -42,6 +43,10 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       if (req.file) fs.unlink(req.file.path, () => {})
       res.status(400).json({ success: false, message: 'priority must be one of: low, medium, high, critical.' }); return
     }
+    if (!Number.isFinite(slaDays) || slaDays < 1 || slaDays > 30) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      res.status(400).json({ success: false, message: 'sla_days must be between 1 and 30.' }); return
+    }
 
     if (req.file) tmpFilePath = req.file.path
 
@@ -55,10 +60,18 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       res.status(400).json({ success: false, message: 'Category does not belong to the selected ticket type.' }); return
     }
 
-    if (category.category_key === 'hardware_issue') {
+    const targetTeam = category.assigned_team_key
+      ? await categoryModel.findByKey(category.assigned_team_key)
+      : null
+    if (!targetTeam) {
+      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      res.status(400).json({ success: false, message: 'Ticket category is not mapped to a team.' }); return
+    }
+
+    if (category.category_key === 'hardware_complaint') {
       if (!asset_id) {
         if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
-        res.status(400).json({ success: false, message: 'asset_id is required for hardware issue tickets.' }); return
+        res.status(400).json({ success: false, message: 'asset_id is required for hardware complaint tickets.' }); return
       }
       const asset = await assetModel.findById(Number(asset_id))
       if (!asset) {
@@ -69,9 +82,9 @@ async function createTicket(req: Request, res: Response): Promise<void> {
         if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
         res.status(403).json({ success: false, message: 'Asset is not assigned to you.' }); return
       }
-      if (Number(asset.category_id) !== Number(category_id)) {
+      if (Number(asset.category_id) !== Number(targetTeam.id)) {
         if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
-        res.status(400).json({ success: false, message: 'Asset does not belong to the selected category.' }); return
+        res.status(400).json({ success: false, message: 'Asset does not belong to the mapped infra team.' }); return
       }
       if (asset.status !== 'active') {
         if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
@@ -81,17 +94,14 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       asset_id = undefined
     }
 
-    // Two-manager variant: approval_owner_id is assigned via round-robin between
-    // the 2 global managers (least pending approvals wins), not per-category.
-    // Manager raising in any category is NOT auto-approved — both managers are peers.
-    const isManagerInOwnCategory = false  // disabled in two-manager variant
-
     let approvalOwnerId: number | null = null
     let approvalManagerEmail: string | null = null
 
-    if (category.requires_approval) {
+    const isDataTeamDataTicket = req.user.role === ROLES.DATA_TEAM && category.type_key === 'data'
+
+    if (category.requires_approval && !isDataTeamDataTicket) {
       try {
-        const approvalManager = await getNextApprovalManager()
+        const approvalManager = await getApprovalManagerForCategory(category.id)
         approvalOwnerId      = approvalManager.id
         approvalManagerEmail = approvalManager.email
       } catch {
@@ -114,6 +124,7 @@ async function createTicket(req: Request, res: Response): Promise<void> {
           raised_by:         req.user.id,
           approval_owner_id: approvalOwnerId,
           asset_id:          asset_id ? Number(asset_id) : null,
+          sla_days:          slaDays,
         })
         break
       } catch (err) {
@@ -164,12 +175,12 @@ async function createTicket(req: Request, res: Response): Promise<void> {
     let fullTicket = await ticketModel.findById(newTicket.id)
     const raiser   = await userModel.findById(newTicket.raised_by)
 
-    if (!category.requires_approval || isManagerInOwnCategory) {
+    if (!category.requires_approval || isDataTeamDataTicket) {
       let employee: Awaited<ReturnType<typeof getNextEmployeeInCategory>>
       try {
-        employee = await getNextEmployeeInCategory(Number(category_id))
+        employee = await getNextEmployeeInCategory(targetTeam.id)
       } catch {
-        res.status(400).json({ success: false, message: 'No active employees are available in this category. Ticket cannot be approved.' }); return
+        res.status(400).json({ success: false, message: 'No active employees are available in the mapped team. Ticket cannot be approved.' }); return
       }
 
       await ticketModel.updateStatus(newTicket.id, 'approved')
@@ -200,30 +211,32 @@ async function createTicket(req: Request, res: Response): Promise<void> {
 
 async function listTickets(req: Request, res: Response): Promise<void> {
   try {
+    if (req.user.role === ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
     const { status, type: ticket_type_id, priority, page = '1', limit = '15' } = req.query as Record<string, string>
     const pageNum  = Math.max(1, Number(page))
     const limitNum = Math.min(100, Math.max(1, Number(limit)))
+    const filters = {
+      status,
+      ticket_type_id: ticket_type_id ? Number(ticket_type_id) : undefined,
+      priority,
+      page: pageNum,
+      limit: limitNum,
+    }
 
     let result: { rows: TicketRow[]; total: number }
 
     if (req.user.role === ROLES.ADMIN) {
-      result = await ticketModel.findAll({
-        status, ticket_type_id: ticket_type_id ? Number(ticket_type_id) : undefined,
-        priority, page: pageNum, limit: limitNum,
-      })
+      result = await ticketModel.findAll(filters)
     } else if (req.user.role === ROLES.MANAGER) {
       // Two-manager variant: managers see ALL tickets across all categories
-      result = await ticketModel.findAll({
-        status,
-        ticket_type_id: ticket_type_id ? Number(ticket_type_id) : undefined,
-        priority, page: pageNum, limit: limitNum,
-      })
+      result = await ticketModel.findAll(filters)
+    } else if (req.user.role === ROLES.DATA_TEAM) {
+      result = await ticketModel.findAll({ ...filters, raised_by: req.user.id })
     } else {
       const view = req.query.view as string | undefined
-      const filters = {
-        status, ticket_type_id: ticket_type_id ? Number(ticket_type_id) : undefined,
-        priority, page: pageNum, limit: limitNum,
-      }
       if (view === 'raised') {
         result = await ticketModel.findAll({ ...filters, raised_by: req.user.id })
       } else if (view === 'assigned') {
@@ -258,6 +271,10 @@ async function listTickets(req: Request, res: Response): Promise<void> {
 
 async function getTicketById(req: Request, res: Response): Promise<void> {
   try {
+    if (req.user.role === ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
     const id = Number(req.params.id)
     const ticket = await ticketModel.findById(id)
     if (!ticket) { res.status(404).json({ success: false, message: 'Ticket not found.' }); return }
@@ -279,6 +296,10 @@ async function getTicketById(req: Request, res: Response): Promise<void> {
 
 async function getAllowedStatuses(req: Request, res: Response): Promise<void> {
   try {
+    if (req.user.role === ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
     const id = Number(req.params.id)
     const ticket = await ticketModel.findById(id)
     if (!ticket) { res.status(404).json({ success: false, message: 'Ticket not found.' }); return }
@@ -288,6 +309,9 @@ async function getAllowedStatuses(req: Request, res: Response): Promise<void> {
 
     let allowedStatuses = getAllowedNextStatuses(ticket.status, req.user.role as Role)
 
+    if (req.user.role === ROLES.DATA_TEAM) {
+      allowedStatuses = []
+    }
     if (['assigned', 'in_progress'].includes(ticket.status) && Number(req.user.id) !== Number(ticket.assigned_to)) {
       allowedStatuses = []
     }
@@ -307,6 +331,10 @@ async function getAllowedStatuses(req: Request, res: Response): Promise<void> {
 
 async function updateTicketStatus(req: Request, res: Response): Promise<void> {
   try {
+    if (req.user.role === ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
     const id = Number(req.params.id)
     const { status, note, report_reason } = req.body as { status?: string; note?: string; report_reason?: string }
 
@@ -375,6 +403,10 @@ async function updateTicketStatus(req: Request, res: Response): Promise<void> {
 
 async function downloadTicketFile(req: Request, res: Response): Promise<void> {
   try {
+    if (req.user.role === ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
     const id = Number(req.params.id)
     const ticket = await ticketModel.findById(id)
     if (!ticket) { res.status(404).json({ success: false, message: 'Ticket not found.' }); return }
@@ -397,6 +429,7 @@ async function canAccessTicket(user: Request['user'], ticket: TicketRow): Promis
   if (user.role === ROLES.ADMIN)                          return true
   if (Number(ticket.raised_by)   === Number(user.id))    return true
   if (Number(ticket.assigned_to) === Number(user.id))    return true
+  if (user.role === ROLES.DATA_TEAM)                     return false
   // Two-manager variant: any manager can view any ticket
   if (user.role === ROLES.MANAGER)                       return true
   return false

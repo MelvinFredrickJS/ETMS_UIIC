@@ -6,12 +6,12 @@ import ROLES from '../constants/ROLES'
 
 const router = Router()
 
-router.get('/',              protect, requireRole(ROLES.ADMIN, ROLES.MANAGER), getAllAssets)
+router.get('/',              protect, requireRole(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), getAllAssets)
 router.get('/my',            protect, requireRole(ROLES.EMPLOYEE, ROLES.MANAGER), getMyAssets)
-router.get('/:id/history',   protect, requireRole(ROLES.ADMIN, ROLES.MANAGER), getAssetHistory)
+router.get('/:id/history',   protect, requireRole(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), getAssetHistory)
 router.get('/:id',           protect, getAssetById)
 router.post('/',             protect, requireRole(ROLES.ADMIN), createAsset)
-router.patch('/:id/status',  protect, requireRole(ROLES.ADMIN, ROLES.MANAGER), updateAssetStatus)
-router.post('/:id/transfer', protect, requireRole(ROLES.ADMIN, ROLES.MANAGER), transferAsset)
+router.patch('/:id/status',  protect, requireRole(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), updateAssetStatus)
+router.post('/:id/transfer', protect, requireRole(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE), transferAsset)
 
 export = router

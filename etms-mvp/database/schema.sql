@@ -2,7 +2,7 @@
 DROP TYPE IF EXISTS priority_enum CASCADE;
 DROP TYPE IF EXISTS user_role_enum CASCADE;
 
-CREATE TYPE user_role_enum AS ENUM ('employee', 'manager', 'admin');
+CREATE TYPE user_role_enum AS ENUM ('employee', 'manager', 'admin', 'data_team');
 CREATE TYPE priority_enum  AS ENUM ('low', 'medium', 'high', 'critical');
 
 -- ✅ NOTES on ENUM types:
@@ -41,11 +41,13 @@ CREATE TABLE ticket_types (
 -- 3. ticket_categories
 CREATE TABLE ticket_categories (
   id                SERIAL PRIMARY KEY,
-  ticket_type_id    INTEGER NOT NULL REFERENCES ticket_types(id),
+  ticket_type_id    INTEGER REFERENCES ticket_types(id),
   name              VARCHAR(100) NOT NULL,
   category_key      VARCHAR(50)  UNIQUE NOT NULL,
   default_priority  priority_enum DEFAULT 'medium',
   manager_user_id   INTEGER REFERENCES users(id),
+  assigned_team_key VARCHAR(50),
+  is_team           BOOLEAN NOT NULL DEFAULT FALSE,
   requires_approval BOOLEAN DEFAULT TRUE
   -- Each category has exactly one dedicated manager.
   -- This is the user who receives the approval request when a ticket
@@ -117,6 +119,10 @@ CREATE TABLE tickets (
   asset_id          INTEGER REFERENCES assets(id),
   rejection_reason  TEXT,               -- set when manager rejects
   report_reason     TEXT,               -- set when ticket is reported/escalated
+  sla_days          INTEGER NOT NULL DEFAULT 3 CHECK (sla_days BETWEEN 1 AND 30),
+  sla_due_date      TIMESTAMPTZ NOT NULL,
+  escalated         BOOLEAN DEFAULT FALSE,
+  escalated_at      TIMESTAMPTZ,
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
@@ -154,6 +160,9 @@ CREATE INDEX idx_tickets_status        ON tickets(status);
 CREATE INDEX idx_tickets_type          ON tickets(ticket_type_id);
 CREATE INDEX idx_tickets_category      ON tickets(category_id);
 CREATE INDEX idx_tickets_asset         ON tickets(asset_id);
+CREATE INDEX idx_tickets_sla           ON tickets(sla_due_date) WHERE escalated = FALSE;
+CREATE INDEX idx_categories_team_key   ON ticket_categories(assigned_team_key);
+CREATE INDEX idx_categories_is_team    ON ticket_categories(is_team);
 
 CREATE INDEX idx_assets_serial         ON assets(serial_number);
 CREATE INDEX idx_assets_category       ON assets(category_id);

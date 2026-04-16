@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { login as loginApi } from '../api/authApi'
+import { ROLES } from '../constants/ROLES'
 
 export default function LoginPage() {
-  const { isAuthenticated, login } = useAuth()
+  const { isAuthenticated, login, user } = useAuth()
   const navigate = useNavigate()
 
   const [email,    setEmail]    = useState('')
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  if (isAuthenticated) return <Navigate to={user?.role === ROLES.DATA_TEAM ? '/data-portal' : '/dashboard'} replace />
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -23,7 +24,13 @@ export default function LoginPage() {
       const { data } = await loginApi(email, password)
       const requiresPasswordChange = !data.user.password_changed_at
       login(data.token, data.user, requiresPasswordChange)
-      navigate(requiresPasswordChange ? '/change-password' : '/dashboard')
+      if (requiresPasswordChange) {
+        navigate('/change-password')
+      } else if (data.user.role === ROLES.DATA_TEAM) {
+        navigate('/data-portal')
+      } else {
+        navigate('/dashboard')
+      }
     } catch (err: unknown) {
       const msg =
         typeof err === 'object' && err !== null && 'response' in err

@@ -5,6 +5,19 @@ import * as userModel from '../models/userModel'
 import ROLES from '../constants/ROLES'
 import type { Role } from '../types'
 
+async function isInfraTeamMember(userId: number): Promise<boolean> {
+  const user = await userModel.findById(userId)
+  if (!user || user.role !== ROLES.EMPLOYEE || !user.category_id) return false
+
+  const category = await categoryModel.findById(user.category_id)
+  return Boolean(category && category.category_key === 'infra_team')
+}
+
+async function getInfraTeamCategoryId(): Promise<number | null> {
+  const infraTeam = await categoryModel.findByKey('infra_team')
+  return infraTeam?.id ?? null
+}
+
 async function getAllAssets(req: Request, res: Response): Promise<void> {
   try {
     const role = req.user.role as Role
@@ -13,6 +26,13 @@ async function getAllAssets(req: Request, res: Response): Promise<void> {
     if (role === ROLES.MANAGER) {
       const managed = await categoryModel.findByManagerId(req.user.id)
       category_ids = managed.map(c => c.id)
+    } else if (role === ROLES.EMPLOYEE) {
+      const isInfra = await isInfraTeamMember(req.user.id)
+      if (!isInfra) {
+        res.status(403).json({ success: false, message: 'Access denied.' }); return
+      }
+      const infraCategoryId = await getInfraTeamCategoryId()
+      category_ids = infraCategoryId ? [infraCategoryId] : []
     }
     // ADMIN gets all — no filter
 
@@ -32,11 +52,17 @@ async function getAssetHistory(req: Request, res: Response): Promise<void> {
     const asset = await assetModel.findById(id)
     if (!asset) { res.status(404).json({ success: false, message: 'Asset not found.' }); return }
 
-    // Access check — admin sees all, manager sees their category
+    // Access check — admin sees all, manager sees their category, infra team employees see infra assets.
     const role = req.user.role as Role
     if (role === ROLES.MANAGER) {
       const managed = await categoryModel.findByManagerId(req.user.id)
       if (!managed.some(c => c.id === asset.category_id)) {
+        res.status(403).json({ success: false, message: 'Access denied.' }); return
+      }
+    } else if (role === ROLES.EMPLOYEE) {
+      const isInfra = await isInfraTeamMember(req.user.id)
+      const infraCategoryId = await getInfraTeamCategoryId()
+      if (!isInfra || !infraCategoryId || asset.category_id !== infraCategoryId) {
         res.status(403).json({ success: false, message: 'Access denied.' }); return
       }
     }
@@ -152,6 +178,17 @@ async function updateAssetStatus(req: Request, res: Response): Promise<void> {
       }
     }
 
+    if (req.user.role === ROLES.EMPLOYEE) {
+      const isInfra = await isInfraTeamMember(req.user.id)
+      const infraCategoryId = await getInfraTeamCategoryId()
+      if (!isInfra || !infraCategoryId || asset.category_id !== infraCategoryId) {
+        res.status(403).json({ success: false, message: 'Only infra team members can update this asset status.' }); return
+      }
+      if (status !== 'under_repair') {
+        res.status(400).json({ success: false, message: 'Infra team members can only flag assets as under_repair.' }); return
+      }
+    }
+
     const updated = await assetModel.updateStatus(id, status)
     res.status(200).json({ success: true, asset: updated })
   } catch (err) {
@@ -190,6 +227,17 @@ async function transferAsset(req: Request, res: Response): Promise<void> {
       const managedCategoryIds = managedCategories.map(c => c.id)
       if (!managedCategoryIds.includes(asset.category_id) && asset.assigned_to !== req.user.id) {
         res.status(403).json({ success: false, message: 'Access denied.' }); return
+      }
+    }
+
+    if (req.user.role === ROLES.EMPLOYEE) {
+      const isInfra = await isInfraTeamMember(req.user.id)
+      const infraCategoryId = await getInfraTeamCategoryId()
+      if (!isInfra || !infraCategoryId || asset.category_id !== infraCategoryId) {
+        res.status(403).json({ success: false, message: 'Only infra team members can initiate this transfer.' }); return
+      }
+      if (Number(asset.assigned_to) !== Number(req.user.id)) {
+        res.status(403).json({ success: false, message: 'Infra team members can only transfer assets currently assigned to themselves.' }); return
       }
     }
 

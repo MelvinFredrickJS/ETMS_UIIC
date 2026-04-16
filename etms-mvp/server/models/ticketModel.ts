@@ -11,19 +11,20 @@ interface CreateTicketInput {
   raised_by: number
   approval_owner_id: number | null
   asset_id: number | null
+  sla_days: number
 }
 
 async function create(input: CreateTicketInput): Promise<TicketRow> {
   const { ticket_no, title, description, ticket_type_id, category_id, priority,
-          raised_by, approval_owner_id, asset_id } = input
+          raised_by, approval_owner_id, asset_id, sla_days } = input
   const { rows } = await pool.query<TicketRow>(
     `INSERT INTO tickets
        (ticket_no, title, description, ticket_type_id, category_id, priority,
-        status, raised_by, approval_owner_id, asset_id, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,'pending_approval',$7,$8,$9,NOW(),NOW())
+        status, raised_by, approval_owner_id, asset_id, sla_days, sla_due_date, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,'pending_approval',$7,$8,$9,$10,NOW() + ($10 * INTERVAL '1 day'),NOW(),NOW())
      RETURNING *`,
     [ticket_no, title, description, ticket_type_id, category_id, priority,
-     raised_by, approval_owner_id ?? null, asset_id ?? null]
+     raised_by, approval_owner_id ?? null, asset_id ?? null, sla_days]
   )
   return rows[0]
 }
@@ -174,9 +175,15 @@ async function findPendingForManager(approval_owner_id: number): Promise<TicketR
 }
 
 async function updateStatus(id: number, status: TicketStatus): Promise<TicketRow | null> {
+  const shouldClearEscalation = status === 'resolved' || status === 'closed'
   const { rows } = await pool.query<TicketRow>(
-    'UPDATE tickets SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *',
-    [id, status]
+    `UPDATE tickets
+     SET status = $2,
+         escalated = CASE WHEN $3 THEN FALSE ELSE escalated END,
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id, status, shouldClearEscalation]
   )
   return rows[0] ?? null
 }
@@ -191,9 +198,16 @@ async function updateStatusWithNote(
   if (!ALLOWED_FIELDS.includes(field)) {
     throw new Error(`Invalid field name: ${field}`)
   }
+  const shouldClearEscalation = status === 'resolved' || status === 'closed'
   const { rows } = await pool.query<TicketRow>(
-    `UPDATE tickets SET status = $2, ${field} = $3, updated_at = NOW() WHERE id = $1 RETURNING *`,
-    [id, status, value]
+    `UPDATE tickets
+     SET status = $2,
+         ${field} = $3,
+         escalated = CASE WHEN $4 THEN FALSE ELSE escalated END,
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id, status, value, shouldClearEscalation]
   )
   return rows[0] ?? null
 }

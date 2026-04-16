@@ -36,6 +36,7 @@ export default function NewTicketPage() {
   const [title,       setTitle]       = useState('')
   const [description, setDescription] = useState('')
   const [priority,    setPriority]    = useState('medium')
+  const [slaDays,     setSlaDays]     = useState(3)
   const [file,        setFile]        = useState<File | null>(null)
   const [submitting,  setSubmitting]  = useState(false)
   const [error,       setError]       = useState('')
@@ -97,6 +98,7 @@ export default function NewTicketPage() {
       fd.append('ticket_type_id', String(selectedCategory.ticket_type_id ?? TYPE_KEY_TO_ID[selectedType as TypeKey]))
       fd.append('category_id',    String(selectedCategory.id))
       fd.append('priority',       priority)
+      fd.append('sla_days',       String(slaDays))
       if (selectedCategory.category_key === 'hardware_issue' && selectedAsset) {
         fd.append('asset_id', String(selectedAsset.id))
       }
@@ -229,6 +231,31 @@ export default function NewTicketPage() {
               </select>
             </div>
 
+            {/* SLA Days */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                SLA Days *
+                <span className="ml-2 text-xs font-normal text-gray-400">(1–30 days — ticket escalates if not resolved by then)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={1} max={30} step={1}
+                  value={slaDays}
+                  onChange={e => setSlaDays(Number(e.target.value))}
+                  className="flex-1 accent-[#1B3A6B]"
+                />
+                <span className="w-16 text-center text-sm font-semibold text-[#1B3A6B] bg-blue-50 border border-blue-200 rounded-lg py-1">
+                  {slaDays} {slaDays === 1 ? 'day' : 'days'}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-400 mt-1 px-0.5">
+                <span>1 day</span>
+                <span>15 days</span>
+                <span>30 days</span>
+              </div>
+            </div>
+
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Description * (min 20 chars)</label>
@@ -309,6 +336,15 @@ export default function NewTicketPage() {
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-xl">{CATEGORY_ICONS[selectedCategory.category_key] ?? '📁'}</span>
                   <span className="text-sm font-medium text-gray-700">{selectedCategory.name}</span>
+                </div>
+              )}
+              {slaDays > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-0.5">SLA deadline</p>
+                  <p className="text-xs font-semibold text-orange-600">
+                    {new Date(Date.now() + slaDays * 86400000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                  <p className="text-xs text-gray-400">{slaDays} {slaDays === 1 ? 'day' : 'days'} from today</p>
                 </div>
               )}
             </div>

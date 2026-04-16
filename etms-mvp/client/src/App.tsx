@@ -13,7 +13,9 @@ import NewTicketPage        from './pages/NewTicketPage'
 import TicketDetailPage     from './pages/TicketDetailPage'
 import PendingApprovalsPage from './pages/PendingApprovalsPage'
 import AdminPage            from './pages/AdminPage'
+import AdminTeamsPage       from './pages/AdminTeamsPage'
 import AssetsPage           from './pages/AssetsPage'
+import DataPortalPage       from './pages/DataPortalPage'
 
 // ── Protected Route ───────────────────────────────────────────────────────────
 interface ProtectedRouteProps {
@@ -51,7 +53,39 @@ function ProtectedRoute({ children, roleRequired }: ProtectedRouteProps) {
     }
   }
 
+  if (user?.role === ROLES.DATA_TEAM && location.pathname !== '/data-portal') {
+    return <Navigate to="/data-portal" replace />
+  }
+
   return <AppLayout>{children}</AppLayout>
+}
+
+function DataPortalRoute() {
+  const { isAuthenticated, isLoading, user } = useAuth()
+  const location = useLocation()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="w-8 h-8 border-4 border-[#1B3A6B] border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  const requiresPasswordChange = sessionStorage.getItem('requiresPasswordChange') === 'true'
+  if (requiresPasswordChange && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />
+  }
+
+  if (user?.role !== ROLES.DATA_TEAM) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return <DataPortalPage />
 }
 
 // ── App Routes ────────────────────────────────────────────────────────────────
@@ -96,6 +130,15 @@ function AppRoutes() {
         <ProtectedRoute roleRequired={ROLES.ADMIN}>
           <AdminPage />
         </ProtectedRoute>
+      } />
+      <Route path="/admin/teams" element={
+        <ProtectedRoute roleRequired={ROLES.ADMIN}>
+          <AdminTeamsPage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/data-portal" element={
+        <DataPortalRoute />
       } />
 
       {/* Fallback */}

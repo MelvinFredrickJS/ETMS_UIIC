@@ -1,7 +1,5 @@
-// Round-robin approval assignment between the 2 global managers.
-// Picks the manager with the fewest currently pending tickets.
-// Tie-breaker: earliest created_at wins.
-// Used by ticketController.createTicket() to set approval_owner_id.
+// Resolve approval manager by category domain mapping.
+// Each request category owns a specific manager via ticket_categories.manager_user_id.
 
 import pool from '../config/db'
 import ROLES from '../constants/ROLES'
@@ -10,27 +8,22 @@ interface ManagerRow {
   id: number
   name: string
   email: string
-  pending_count: string
 }
 
-export async function getNextApprovalManager(): Promise<ManagerRow> {
+export async function getApprovalManagerForCategory(categoryId: number): Promise<ManagerRow> {
   const { rows } = await pool.query<ManagerRow>(
-    `SELECT u.id, u.name, u.email,
-            COUNT(t.id) AS pending_count
-     FROM users u
-     LEFT JOIN tickets t
-       ON t.approval_owner_id = u.id
-      AND t.status = 'pending_approval'
-     WHERE u.role = $1
+    `SELECT u.id, u.name, u.email
+     FROM ticket_categories tc
+     JOIN users u ON u.id = tc.manager_user_id
+     WHERE tc.id = $1
+       AND u.role = $2
        AND u.is_active = true
-     GROUP BY u.id
-     ORDER BY COUNT(t.id) ASC, u.created_at ASC
      LIMIT 1`,
-    [ROLES.MANAGER]
+    [categoryId, ROLES.MANAGER]
   )
 
   if (!rows.length) {
-    throw new Error('No active managers available for approval assignment.')
+    throw new Error('No active domain manager configured for this category.')
   }
 
   return rows[0]

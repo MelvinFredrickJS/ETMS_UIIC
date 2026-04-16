@@ -5,7 +5,7 @@ import {
   getAllUsers, createUser, deleteUser, transferOwnership,
   getTickets, getCategories,
   getAllAssets, getAssetHistory, updateAssetStatus, transferAsset,
-  getEmployeesByCategory, lookupEmployee, toggleUserActive, updateUserName,
+  getEmployeesByCategory, lookupEmployee, toggleUserActive, updateUserName, getTeams,
   type AssignmentHistory, type EmployeeLookupResult,
 } from '../api/ticketApi'
 import StatusBadge       from '../components/common/StatusBadge'
@@ -96,6 +96,13 @@ export default function AdminPage() {
   const [lookupResult,  setLookupResult]  = useState<EmployeeLookupResult | null>(null)
   const [lookupError,   setLookupError]   = useState('')
 
+  // Teams summary
+  const [teams, setTeams] = useState<Array<{ id: number; name: string; category_key: string; manager_name: string | null }>>([])
+  const [teamsLoading, setTeamsLoading] = useState(false)
+  const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null)
+  const [teamMembersById, setTeamMembersById] = useState<Record<number, Pick<User, 'id' | 'name' | 'emp_id' | 'email'>[]>>({})
+  const [teamMembersLoadingId, setTeamMembersLoadingId] = useState<number | null>(null)
+
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
   // Load users + categories
@@ -106,7 +113,40 @@ export default function AdminPage() {
       setCategories(flat)
       setTypeGroups(data.types)
     }).catch(() => {})
+    loadTeams()
   }, [])
+
+  async function loadTeams() {
+    setTeamsLoading(true)
+    try {
+      const { data } = await getTeams()
+      setTeams(data.teams)
+    } catch {
+      setTeams([])
+    } finally {
+      setTeamsLoading(false)
+    }
+  }
+
+  async function toggleTeamMembers(teamId: number) {
+    if (expandedTeamId === teamId) {
+      setExpandedTeamId(null)
+      return
+    }
+
+    setExpandedTeamId(teamId)
+    if (teamMembersById[teamId]) return
+
+    setTeamMembersLoadingId(teamId)
+    try {
+      const { data } = await getEmployeesByCategory(teamId)
+      setTeamMembersById(prev => ({ ...prev, [teamId]: data.employees }))
+    } catch {
+      setTeamMembersById(prev => ({ ...prev, [teamId]: [] }))
+    } finally {
+      setTeamMembersLoadingId(null)
+    }
+  }
 
   async function loadUsers() {
     setUsersLoading(true)
@@ -495,6 +535,70 @@ export default function AdminPage() {
                 </div>
               )
             })()}
+          </div>
+
+          {/* Teams section */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-bold text-gray-800">🏷️ Teams</p>
+                <p className="text-xs text-gray-400">Click a team to reveal members</p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-[#1B3A6B]/10 text-[#1B3A6B] text-xs font-semibold">
+                {teams.length} team{teams.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {teamsLoading ? (
+              <div className="flex justify-center py-8"><div className="w-6 h-6 border-4 border-[#1B3A6B] border-t-transparent rounded-full animate-spin" /></div>
+            ) : teams.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4">No teams found.</p>
+            ) : (
+              <div className="space-y-2">
+                {teams.map(team => {
+                  const isOpen = expandedTeamId === team.id
+                  const members = teamMembersById[team.id] ?? []
+                  const isMembersLoading = teamMembersLoadingId === team.id
+
+                  return (
+                    <div key={team.id} className="border border-gray-100 rounded-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => toggleTeamMembers(team.id)}
+                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="text-left">
+                          <p className="text-sm font-semibold text-gray-800">{team.name}</p>
+                          <p className="text-xs text-gray-500">
+                            Key: {team.category_key} {team.manager_name ? `· Manager: ${team.manager_name}` : ''}
+                          </p>
+                        </div>
+                        <span className="text-xs text-gray-500">{isOpen ? '▲ Hide' : '▼ Show members'}</span>
+                      </button>
+
+                      {isOpen && (
+                        <div className="px-4 pb-3 bg-gray-50 border-t border-gray-100">
+                          {isMembersLoading ? (
+                            <div className="py-3 text-xs text-gray-500">Loading members…</div>
+                          ) : members.length === 0 ? (
+                            <div className="py-3 text-xs text-gray-500">No members assigned.</div>
+                          ) : (
+                            <ul className="py-2 space-y-1">
+                              {members.map(member => (
+                                <li key={member.id} className="text-sm text-gray-700">
+                                  <span className="font-medium">{member.name}</span>
+                                  <span className="text-gray-500"> ({member.emp_id}) · {member.email}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Users table */}

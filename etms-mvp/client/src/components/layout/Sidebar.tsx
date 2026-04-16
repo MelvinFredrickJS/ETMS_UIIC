@@ -69,11 +69,17 @@ export default function Sidebar() {
           </NavLink>
         )}
 
-        {/* Admin Panel — admin only */}
+        {/* Admin section — admin only */}
         {user?.role === ROLES.ADMIN && (
-          <NavLink to="/admin" className={linkClass}>
-            ⚙️ Admin Panel
-          </NavLink>
+          <>
+            <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400">Admin</p>
+            <NavLink to="/admin" end className={linkClass}>
+              ⚙️ Admin Panel
+            </NavLink>
+            <NavLink to="/admin/teams" className={linkClass}>
+              👥 Teams
+            </NavLink>
+          </>
         )}
       </nav>
 

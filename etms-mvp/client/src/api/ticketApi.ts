@@ -44,6 +44,21 @@ export const createTicket = (data: FormData) =>
     { headers: { 'Content-Type': 'multipart/form-data' } }
   )
 
+export const createDataPortalTicket = (data: FormData) =>
+  api.post<{ success: boolean; ticket: Ticket }>(
+    '/data-portal/tickets',
+    data,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+
+export const getDataPortalTickets = (params?: TicketListParams) =>
+  api.get<TicketListResponse>('/data-portal/tickets', { params })
+
+export const getDataPortalTicketById = (id: string | number) =>
+  api.get<{ success: boolean; ticket: Ticket; attachments: Attachment[]; logs: TicketLog[] }>(
+    `/data-portal/tickets/${id}`
+  )
+
 export const updateStatus = (id: string | number, status: TicketStatus, note?: string) =>
   api.put<{ success: boolean; ticket: Ticket }>(
     `/tickets/${id}/status`,
@@ -85,6 +100,17 @@ export const getEmployeesByCategory = (categoryId: number) =>
   api.get<{ success: boolean; employees: Pick<User, 'id' | 'name' | 'emp_id' | 'email'>[] }>(
     `/categories/${categoryId}/employees`
   )
+
+export interface TeamSummary {
+  id: number
+  name: string
+  category_key: string
+  manager_user_id: number | null
+  manager_name: string | null
+}
+
+export const getTeams = () =>
+  api.get<{ success: boolean; teams: TeamSummary[] }>('/categories/teams')
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 

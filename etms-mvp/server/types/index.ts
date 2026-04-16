@@ -1,6 +1,6 @@
 // ── Domain row types (match DB columns) ──────────────────────────────────────
 
-export type Role = 'employee' | 'manager' | 'admin'
+export type Role = 'employee' | 'manager' | 'admin' | 'data_team'
 
 export type TicketStatus =
   | 'pending_approval'
@@ -45,6 +45,10 @@ export interface TicketRow {
   asset_id: number | null
   rejection_reason: string | null
   report_reason: string | null
+  sla_days?: number
+  sla_due_date?: string
+  escalated?: boolean
+  escalated_at?: string | null
   created_at: string
   updated_at: string
   // Joined fields
@@ -64,10 +68,12 @@ export interface CategoryRow {
   id: number
   name: string
   category_key: string
-  ticket_type_id: number
+  ticket_type_id: number | null
   default_priority: Priority
   requires_approval: boolean
   manager_user_id: number | null
+  assigned_team_key?: string | null
+  is_team?: boolean
   // Joined fields
   type_key?: TypeKey
   type_name?: string

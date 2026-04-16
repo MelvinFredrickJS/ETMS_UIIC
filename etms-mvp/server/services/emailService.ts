@@ -185,6 +185,25 @@ async function sendEscalationEmail(ticket: TicketRow, managerEmail: string): Pro
   )
 }
 
+async function sendSlaEscalationEmail(ticket: TicketRow, managerEmail: string): Promise<void> {
+  const subject = `[ETMS] SLA Overdue: ${ticket.ticket_no}`
+  const html = buildEmailLayout({
+    heading: 'SLA Overdue',
+    rows: [
+      ['Ticket No',     ticket.ticket_no],
+      ['Category',      ticket.category_name ?? ''],
+      ['Title',         ticket.title],
+      ['Assigned To',   ticket.assigned_to_name ?? 'N/A'],
+      ['SLA Due Date',  fmt(ticket.sla_due_date)],
+      ['Escalated At',  fmt(ticket.escalated_at)],
+    ],
+    footer: 'This ticket has crossed its SLA threshold and remains open.',
+  })
+  sendMail(managerEmail, subject, html).catch(err =>
+    console.error('[emailService] sendSlaEscalationEmail failed:', (err as Error).message)
+  )
+}
+
 export {
   sendPendingApprovalEmail,
   sendTicketApprovedEmail,
@@ -193,4 +212,5 @@ export {
   sendTicketAssignedToEmployeeEmail,
   sendTicketResolvedEmail,
   sendEscalationEmail,
+  sendSlaEscalationEmail,
 }

@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
 import * as ticketModel from '../models/ticketModel'
+import * as categoryModel from '../models/categoryModel'
 import * as userModel from '../models/userModel'
 import * as emailService from '../services/emailService'
 import ROLES from '../constants/ROLES'
@@ -29,13 +30,19 @@ async function approveTicket(req: Request, res: Response): Promise<void> {
       res.status(403).json({ success: false, message: 'You do not have permission to manage this approval.' }); return
     }
 
+    const category = await categoryModel.findById(ticket.category_id)
+    const targetTeam = category?.assigned_team_key ? await categoryModel.findByKey(category.assigned_team_key) : null
+    if (!targetTeam) {
+      res.status(400).json({ success: false, message: 'Ticket category is not mapped to a team.' }); return
+    }
+
     let employee: Awaited<ReturnType<typeof getNextEmployeeInCategory>>
     try {
-      employee = await getNextEmployeeInCategory(ticket.category_id)
+      employee = await getNextEmployeeInCategory(targetTeam.id)
     } catch {
       res.status(400).json({
         success: false,
-        message: 'No active employees are available in this category. Approval is not allowed.',
+        message: 'No active employees are available in the mapped team. Approval is not allowed.',
       }); return
     }
 
@@ -139,10 +146,16 @@ async function reapproveTicket(req: Request, res: Response): Promise<void> {
       res.status(400).json({ success: false, message: 'Assigned user must be an active employee.' }); return
     }
 
-    const categoryEmployees = await userModel.findEmployeesByCategory(ticket.category_id)
+    const category = await categoryModel.findById(ticket.category_id)
+    const targetTeam = category?.assigned_team_key ? await categoryModel.findByKey(category.assigned_team_key) : null
+    if (!targetTeam) {
+      res.status(400).json({ success: false, message: 'Ticket category is not mapped to a team.' }); return
+    }
+
+    const categoryEmployees = await userModel.findEmployeesByCategory(targetTeam.id)
     const isEligible = categoryEmployees.some(e => Number(e.id) === Number(assigned_to))
     if (!isEligible) {
-      res.status(400).json({ success: false, message: 'Employee is not assigned to this category.' }); return
+      res.status(400).json({ success: false, message: 'Employee is not assigned to the mapped team.' }); return
     }
 
     await ticketModel.updateStatus(ticketId, 'approved')

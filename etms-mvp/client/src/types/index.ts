@@ -1,6 +1,6 @@
 // ── Domain types ──────────────────────────────────────────────────────────────
 
-export type Role = 'employee' | 'manager' | 'admin'
+export type Role = 'employee' | 'manager' | 'admin' | 'data_team'
 
 export type TicketStatus =
   | 'pending_approval'
@@ -58,6 +58,10 @@ export interface Ticket {
   asset_serial_number: string | null
   rejection_reason: string | null
   report_reason: string | null
+  sla_days?: number
+  sla_due_date?: string
+  escalated?: boolean
+  escalated_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -68,9 +72,11 @@ export interface Category {
   id: number
   name: string
   category_key: string
-  default_priority: Priority
+  default_priority: Priority | null
   requires_approval: boolean
-  ticket_type_id?: number
+  ticket_type_id?: number | null
+  assigned_team_key?: string | null
+  is_team?: boolean
 }
 
 export interface TicketTypeGroup {
