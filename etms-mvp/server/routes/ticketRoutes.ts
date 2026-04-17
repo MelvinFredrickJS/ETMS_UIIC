@@ -7,7 +7,7 @@ import ROLES from '../constants/ROLES'
 
 const router = Router()
 
-router.post('/',                    protect, requireRole(ROLES.EMPLOYEE, ROLES.MANAGER), upload.single('file'), createTicket)
+router.post('/',                    protect, requireRole(ROLES.EMPLOYEE), upload.single('file'), createTicket)
 router.get('/',                     protect, listTickets)
 router.get('/:id',                  protect, getTicketById)
 router.get('/:id/allowed-statuses', protect, getAllowedStatuses)

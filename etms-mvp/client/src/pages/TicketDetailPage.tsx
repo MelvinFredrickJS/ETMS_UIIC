@@ -141,7 +141,7 @@ export default function TicketDetailPage() {
             <h1 className="text-2xl font-bold text-gray-800 mb-3">{ticket.title}</h1>
             <div className="flex flex-wrap gap-2">
               <TypeBadge typeKey={ticket.type_key} />
-              <StatusBadge status={ticket.status} />
+              <StatusBadge status={ticket.status} isReapproval={isReapproval} />
               <PriorityBadge priority={ticket.priority} />
             </div>
           </div>

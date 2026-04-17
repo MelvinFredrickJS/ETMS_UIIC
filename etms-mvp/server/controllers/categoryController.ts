@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
 import * as categoryModel from '../models/categoryModel'
 import * as userModel from '../models/userModel'
+import ROLES from '../constants/ROLES'
 
 const PROTECTED_TEAM_KEYS = new Set([
   'email_team',
@@ -51,11 +52,29 @@ async function getEmployeesByCategory(req: Request, res: Response): Promise<void
     }
 
     const category = await categoryModel.findById(categoryId)
+    if (!category) {
+      res.status(404).json({ success: false, message: 'Category not found.' }); return
+    }
+
     const teamId = category?.is_team
       ? category.id
       : category?.assigned_team_key
         ? (await categoryModel.findByKey(category.assigned_team_key))?.id
         : categoryId
+
+    if (req.user.role === ROLES.MANAGER) {
+      const managedCategories = await categoryModel.findByManagerId(req.user.id)
+      const managedCategoryIds = new Set(managedCategories.map(c => Number(c.id)))
+      const requestedCategoryId = Number(categoryId)
+      const effectiveCategoryId = Number(teamId ?? categoryId)
+
+      const canViewRequestedCategory = managedCategoryIds.has(requestedCategoryId)
+      const canViewMappedTeam = managedCategoryIds.has(effectiveCategoryId)
+
+      if (!canViewRequestedCategory && !canViewMappedTeam) {
+        res.status(403).json({ success: false, message: 'Access denied for this category.' }); return
+      }
+    }
 
     const employees = await userModel.findEmployeesByCategory(teamId ?? categoryId)
     res.status(200).json({ success: true, employees })

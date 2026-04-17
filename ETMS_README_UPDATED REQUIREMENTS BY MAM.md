@@ -287,8 +287,8 @@ Assets are managed **by the Infra Team**, not directly by managers.
 
 | Action                   | Employee                            | Manager         | Admin | Data Team    |
 | ------------------------ | ----------------------------------- | --------------- | ----- | ------------ |
-| Raise complaint ticket   | ✅                                  | ✅              | ❌    | ❌           |
-| Raise request ticket     | ✅                                  | ✅              | ❌    | ❌           |
+| Raise complaint ticket   | ✅                                  | ❌              | ❌    | ❌           |
+| Raise request ticket     | ✅                                  | ❌              | ❌    | ❌           |
 | Raise data ticket        | ❌                                  | ❌              | ❌    | ✅           |
 | Approve / reject request | ❌                                  | ✅ (own domain) | ❌    | ❌           |
 | Work assigned ticket     | ✅ (own)                            | ✅ (own)        | ❌    | ❌           |
@@ -343,7 +343,7 @@ etms-mvp/
 │   │   │   ├── TicketsPage.tsx
 │   │   │   ├── NewTicketPage.tsx      # 3-step wizard + SLA days field + Report Issue pre-fill
 │   │   │   ├── TicketDetailPage.tsx
-│   │   │   ├── PendingApprovalsPage.tsx  # manager only — REQUEST queue
+│   │   │   ├── PendingApprovalsPage.tsx  # manager only — re-approval queue
 │   │   │   ├── AssetsPage.tsx         # employee: cards | infra team: full table
 │   │   │   ├── AdminPage.tsx          # 3 tabs: Users | Assets | All Tickets
 │   │   │   └── DataPortalPage.tsx     # data_team role only — separate portal
@@ -420,7 +420,7 @@ etms-mvp/
 
 | Method | Endpoint                          | Access               |
 | ------ | --------------------------------- | -------------------- |
-| POST   | /api/tickets                      | Employee, Manager    |
+| POST   | /api/tickets                      | Employee             |
 | GET    | /api/tickets                      | All (scoped by role) |
 | GET    | /api/tickets/:id                  | All (scoped)         |
 | GET    | /api/tickets/:id/allowed-statuses | All (scoped)         |
@@ -870,9 +870,10 @@ npm run dev    # concurrently from etms-mvp/
 | `/change-password` | ChangePasswordPage   | Authenticated            |
 | `/dashboard`       | DashboardPage        | Employee, Manager, Admin |
 | `/tickets`         | TicketsPage          | Employee, Manager, Admin |
-| `/tickets/new`     | NewTicketPage        | Employee, Manager        |
+| `/tickets/new`     | NewTicketPage        | Employee only            |
 | `/tickets/:id`     | TicketDetailPage     | All (scoped)             |
 | `/approvals`       | PendingApprovalsPage | Manager only             |
+| `/reports`         | ReportsPage          | Manager only             |
 | `/assets`          | AssetsPage           | Employee, Manager        |
 | `/admin`           | AdminPage            | Admin only               |
 | `/data-portal`     | DataPortalPage       | Data Team only           |

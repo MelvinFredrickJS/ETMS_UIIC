@@ -231,7 +231,11 @@ async function listTickets(req: Request, res: Response): Promise<void> {
     if (req.user.role === ROLES.ADMIN) {
       result = await ticketModel.findAll(filters)
     } else if (req.user.role === ROLES.MANAGER) {
-      result = await ticketModel.findAll({ ...filters, approval_owner_id: req.user.id })
+      result = await ticketModel.findAll({
+        ...filters,
+        approval_owner_id: req.user.id,
+        exclude_reapproval_pending: true,
+      })
     } else if (req.user.role === ROLES.DATA_TEAM) {
       result = await ticketModel.findAll({ ...filters, raised_by: req.user.id })
     } else {

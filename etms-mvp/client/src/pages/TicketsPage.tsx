@@ -52,6 +52,17 @@ export default function TicketsPage() {
     : user?.role === ROLES.MANAGER ? 'Managed Tickets'
     : 'My Tickets'
 
+  const statusOptions = user?.role === ROLES.MANAGER
+    ? STATUS_OPTIONS.filter(option => option.value !== 'pending_approval')
+    : STATUS_OPTIONS
+
+  useEffect(() => {
+    if (user?.role === ROLES.MANAGER && filterStatus === 'pending_approval') {
+      setFilterStatus('')
+      setPage(1)
+    }
+  }, [user?.role, filterStatus])
+
   useEffect(() => {
     fetchTickets()
   }, [page, filterType, filterStatus, filterPriority])
@@ -85,7 +96,7 @@ export default function TicketsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">{pageTitle}</h1>
-        {(user?.role === ROLES.EMPLOYEE || user?.role === ROLES.MANAGER) && (
+        {user?.role === ROLES.EMPLOYEE && (
           <button onClick={() => navigate('/tickets/new')}
             className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#15305a] transition-colors">
             ➕ Raise Ticket
@@ -99,7 +110,7 @@ export default function TicketsPage() {
           {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select value={filterStatus}   onChange={handleFilterChange(setFilterStatus)}   className={selectClass}>
-          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select value={filterPriority} onChange={handleFilterChange(setFilterPriority)} className={selectClass}>
           {PRIORITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}

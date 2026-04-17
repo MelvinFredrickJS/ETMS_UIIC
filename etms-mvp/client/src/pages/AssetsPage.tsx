@@ -291,12 +291,6 @@ export default function AssetsPage() {
                         className="text-xs text-gray-500 hover:underline font-medium">
                         History
                       </button>
-                      {a.status === 'active' && (
-                        <button onClick={() => reportIssue(a)}
-                          className="text-xs text-red-500 hover:underline font-medium">
-                          Report Issue
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>

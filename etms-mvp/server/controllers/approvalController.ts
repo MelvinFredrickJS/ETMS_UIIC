@@ -26,6 +26,13 @@ async function approveTicket(req: Request, res: Response): Promise<void> {
     if (ticket.status !== 'pending_approval') {
       res.status(400).json({ success: false, message: 'Can only approve pending tickets.' }); return
     }
+    if (ticket.report_reason) {
+      res.status(400).json({
+        success: false,
+        message: 'Escalated tickets require manager re-approval with explicit assignee.',
+      });
+      return
+    }
     if (Number(ticket.approval_owner_id) !== Number(req.user.id)) {
       res.status(403).json({ success: false, message: 'You do not have permission to manage this approval.' }); return
     }
@@ -129,13 +136,35 @@ async function reapproveTicket(req: Request, res: Response): Promise<void> {
     if (ticket.status !== 'pending_approval') {
       res.status(400).json({ success: false, message: 'Can only re-approve pending tickets.' }); return
     }
-    const logs = await ticketModel.getLogs(ticketId)
-    const isEscalatedTicket = logs.some(l => l.action === 'ESCALATED' || l.action === 'BACK_TO_MANAGER')
-    if (!isEscalatedTicket) {
-      res.status(400).json({ success: false, message: 'This is not an escalated ticket.' }); return
-    }
     if (Number(ticket.approval_owner_id) !== Number(req.user.id)) {
       res.status(403).json({ success: false, message: 'You do not have permission to manage this approval.' }); return
+    }
+    if (!ticket.report_reason || !ticket.report_reason.trim()) {
+      res.status(400).json({ success: false, message: 'This is not an escalated ticket.' }); return
+    }
+
+    const logs = await ticketModel.getLogs(ticketId)
+    const hasEscalatedLog = logs.some(l => l.action === 'ESCALATED')
+    const hasBackToManagerLog = logs.some(l => l.action === 'BACK_TO_MANAGER')
+
+    if (!hasEscalatedLog) {
+      await ticketModel.logAction({
+        ticket_id: ticketId,
+        action: 'ESCALATED',
+        old_status: null,
+        new_status: 'reported',
+        performed_by: null,
+        note: ticket.report_reason,
+      })
+    }
+    if (!hasBackToManagerLog) {
+      await ticketModel.logAction({
+        ticket_id: ticketId,
+        action: 'BACK_TO_MANAGER',
+        old_status: 'reported',
+        new_status: 'pending_approval',
+        performed_by: null,
+      })
     }
 
     const { assigned_to } = req.body as { assigned_to?: string }

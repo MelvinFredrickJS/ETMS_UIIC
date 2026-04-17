@@ -747,7 +747,9 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-gray-500 text-xs">{t.category_name}</td>
                       <td className="px-4 py-3 font-medium text-gray-800 max-w-xs truncate">{t.title}</td>
                       <td className="px-4 py-3"><PriorityBadge priority={t.priority} /></td>
-                      <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={t.status} isReapproval={t.status === 'pending_approval' && !!t.report_reason} />
+                      </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{t.raised_by_name}</td>
                       <td className="px-4 py-3 text-gray-400 text-xs">{format(new Date(t.created_at), 'dd MMM yy')}</td>
                     </tr>

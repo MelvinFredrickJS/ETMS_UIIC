@@ -60,6 +60,7 @@ interface FindAllOptions {
   raised_by?: number
   assigned_to?: number
   approval_owner_id?: number
+  exclude_reapproval_pending?: boolean
   status?: string
   ticket_type_id?: number
   category_id?: number
@@ -71,7 +72,7 @@ interface FindAllOptions {
 
 async function findAll(options: FindAllOptions = {}): Promise<{ rows: TicketRow[]; total: number }> {
   const {
-    raised_by, assigned_to, approval_owner_id, status, ticket_type_id,
+    raised_by, assigned_to, approval_owner_id, exclude_reapproval_pending, status, ticket_type_id,
     category_id, category_ids, priority,
     page = 1, limit = 15
   } = options
@@ -91,6 +92,9 @@ async function findAll(options: FindAllOptions = {}): Promise<{ rows: TicketRow[
   if (approval_owner_id !== undefined && approval_owner_id !== null) {
     where.push(`t.approval_owner_id = $${idx++}`)
     params.push(approval_owner_id)
+  }
+  if (exclude_reapproval_pending) {
+    where.push(`NOT (t.status = 'pending_approval' AND t.report_reason IS NOT NULL)`)
   }
   if (category_id !== undefined && category_id !== null) {
     where.push(`t.category_id = $${idx++}`)
@@ -173,6 +177,7 @@ async function findPendingForManager(approval_owner_id: number): Promise<TicketR
      JOIN users raiser         ON t.raised_by       = raiser.id
      WHERE t.approval_owner_id = $1
        AND t.status = 'pending_approval'
+       AND t.report_reason IS NOT NULL
      ORDER BY t.created_at ASC`,
     [approval_owner_id]
   )

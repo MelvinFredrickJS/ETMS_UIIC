@@ -26,7 +26,10 @@ export default function TicketCard({ ticket }: Props) {
   const { id, ticket_no, title, type_key, category_name, priority, status, raised_by_name, created_at } = ticket
   const navigate    = useNavigate()
   const typeConfig  = TICKET_TYPE_COLORS[type_key] ?? TICKET_TYPE_COLORS.complaint
-  const statusStyle = STATUS_CARD_STYLES[status] ?? { bg: 'bg-white', border: 'border-gray-100' }
+  const isReapprovalPending = status === 'pending_approval' && !!ticket.report_reason
+  const statusStyle = isReapprovalPending
+    ? { bg: 'bg-orange-100', border: 'border-orange-500' }
+    : (STATUS_CARD_STYLES[status] ?? { bg: 'bg-white', border: 'border-gray-100' })
 
   return (
     <div
@@ -36,7 +39,7 @@ export default function TicketCard({ ticket }: Props) {
       {/* Row 1: badges */}
       <div className="flex items-center gap-2 flex-wrap mb-2">
         <TypeBadge typeKey={type_key} />
-        <StatusBadge status={status} />
+        <StatusBadge status={status} isReapproval={isReapprovalPending} />
         <div className="ml-auto">
           <PriorityBadge priority={priority} />
         </div>

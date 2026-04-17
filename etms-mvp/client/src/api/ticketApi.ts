@@ -171,6 +171,20 @@ export const updateAssetStatus = (assetId: number, status: string) =>
 export const transferAsset = (assetId: number, payload: { to_user_id: number; note?: string }) =>
   api.post<{ success: boolean; asset: Asset }>(`/assets/${assetId}/transfer`, payload)
 
+// ── Reports ──────────────────────────────────────────────────────────────────
+
+export interface TopFailingDevice {
+  id: number
+  name: string
+  serial_number: string
+  total_issues: string
+}
+
+export const getTopFailingDevices = (limit = 10) =>
+  api.get<{ success: boolean; devices: TopFailingDevice[] }>('/reports/top-failing-devices', {
+    params: { limit },
+  })
+
 // ── Approvals — manager only ──────────────────────────────────────────────────
 
 export const getPendingApprovals = () =>

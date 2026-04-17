@@ -12,6 +12,7 @@ import TicketsPage          from './pages/TicketsPage'
 import NewTicketPage        from './pages/NewTicketPage'
 import TicketDetailPage     from './pages/TicketDetailPage'
 import PendingApprovalsPage from './pages/PendingApprovalsPage'
+import ReportsPage          from './pages/ReportsPage'
 import AdminPage            from './pages/AdminPage'
 import AdminTeamsPage       from './pages/AdminTeamsPage'
 import AssetsPage           from './pages/AssetsPage'
@@ -109,7 +110,7 @@ function AppRoutes() {
         <ProtectedRoute><TicketsPage /></ProtectedRoute>
       } />
       <Route path="/tickets/new" element={
-        <ProtectedRoute roleRequired={[ROLES.EMPLOYEE, ROLES.MANAGER]}>
+        <ProtectedRoute roleRequired={ROLES.EMPLOYEE}>
           <NewTicketPage />
         </ProtectedRoute>
       } />
@@ -119,6 +120,11 @@ function AppRoutes() {
       <Route path="/approvals" element={
         <ProtectedRoute roleRequired={ROLES.MANAGER}>
           <PendingApprovalsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports" element={
+        <ProtectedRoute roleRequired={ROLES.MANAGER}>
+          <ReportsPage />
         </ProtectedRoute>
       } />
       <Route path="/assets" element={

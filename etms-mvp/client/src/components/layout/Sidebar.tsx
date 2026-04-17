@@ -43,8 +43,8 @@ export default function Sidebar() {
           </NavLink>
         )}
 
-        {/* Raise Ticket — employee and manager only */}
-        {(user?.role === ROLES.EMPLOYEE || user?.role === ROLES.MANAGER) && (
+        {/* Raise Ticket — employee only */}
+        {user?.role === ROLES.EMPLOYEE && (
           <NavLink to="/tickets/new" className={linkClass}>
             ➕ Raise Ticket
           </NavLink>
@@ -62,10 +62,16 @@ export default function Sidebar() {
           </NavLink>
         )}
 
-        {/* Pending Approvals — manager only */}
+        {/* Re-approvals — manager only */}
         {user?.role === ROLES.MANAGER && (
           <NavLink to="/approvals" className={linkClass}>
-            ✅ Pending Approvals
+            ✅ Re-approvals
+          </NavLink>
+        )}
+
+        {user?.role === ROLES.MANAGER && (
+          <NavLink to="/reports" className={linkClass}>
+            📊 Reports
           </NavLink>
         )}
 

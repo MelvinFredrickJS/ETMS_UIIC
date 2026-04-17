@@ -40,9 +40,12 @@ export default function DashboardPage() {
       setLoading(true)
       try {
         if (user.role === ROLES.MANAGER) {
-          const { data } = await getPendingApprovals()
-          setTickets(data.tickets.slice(0, 5))
-          setCounts({ pending: data.total })
+          const [{ data: pendingData }, { data: managedData }] = await Promise.all([
+            getPendingApprovals(),
+            getTickets({ limit: 5 }),
+          ])
+          setCounts({ pending: pendingData.total })
+          setTickets(managedData.tickets.filter(t => !t.report_reason).slice(0, 5))
         } else {
           const { data } = await getTickets({ limit: 100 })
           const all = data.tickets
@@ -68,7 +71,7 @@ export default function DashboardPage() {
       { label: 'Reported',         value: counts['reported']         ?? 0, color: 'text-rose-600' },
     ]
     if (user.role === ROLES.MANAGER) return [
-      { label: 'Pending Approvals', value: counts['pending'] ?? 0, color: 'text-orange-600' },
+      { label: 'Re-approvals', value: counts['pending'] ?? 0, color: 'text-orange-600' },
     ]
     // ADMIN
     return [
@@ -123,10 +126,16 @@ export default function DashboardPage() {
               </button>
             )}
             {user?.role === ROLES.MANAGER && (
-              <button onClick={() => navigate('/approvals')}
-                className="bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
-                ✅ Review Pending Approvals
-              </button>
+              <>
+                <button onClick={() => navigate('/approvals')}
+                  className="bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
+                  ✅ Review Re-approvals
+                </button>
+                <button onClick={() => navigate('/reports')}
+                  className="bg-slate-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors">
+                  📊 View Reports
+                </button>
+              </>
             )}
             {user?.role === ROLES.ADMIN && (
               <button onClick={() => navigate('/admin')}
