@@ -14,8 +14,8 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, color = 'text-[#1B3A6B]' }: KpiCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+    <div className="surface-card interactive-card p-5">
+      <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`text-3xl font-bold ${color}`}>{value}</p>
     </div>
   )
@@ -84,11 +84,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="page-wrap">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Welcome back, {user?.name}</p>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-subtitle">Welcome back, {user?.name}</p>
+        </div>
       </div>
 
       {/* KPI cards */}
@@ -98,7 +100,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+          <div className="kpi-grid mb-8">
             {kpis().map(k => (
               <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} />
             ))}
@@ -106,11 +108,13 @@ export default function DashboardPage() {
 
           {/* Recent tickets */}
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-700">Recent Tickets</h2>
+            <h2 className="text-lg font-semibold text-slate-800">Recent Tickets</h2>
           </div>
 
           {tickets.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No tickets yet.</p>
+            <div className="surface-card p-10 text-center">
+              <p className="text-sm text-slate-400">No tickets yet.</p>
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {tickets.map(t => <TicketCard key={t.id} ticket={t} />)}
@@ -120,26 +124,22 @@ export default function DashboardPage() {
           {/* CTAs */}
           <div className="mt-8 flex gap-3 flex-wrap">
             {user?.role === ROLES.EMPLOYEE && (
-              <button onClick={() => navigate('/tickets/new')}
-                className="bg-[#1B3A6B] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#15305a] transition-colors">
+              <button onClick={() => navigate('/tickets/new')} className="btn-primary">
                 ➕ Raise New Ticket
               </button>
             )}
             {user?.role === ROLES.MANAGER && (
               <>
-                <button onClick={() => navigate('/approvals')}
-                  className="bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
+                <button onClick={() => navigate('/approvals')} className="btn-primary" style={{ background: 'linear-gradient(135deg, #15803d, #166534)' }}>
                   ✅ Review Re-approvals
                 </button>
-                <button onClick={() => navigate('/reports')}
-                  className="bg-slate-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors">
+                <button onClick={() => navigate('/reports')} className="btn-secondary">
                   📊 View Reports
                 </button>
               </>
             )}
             {user?.role === ROLES.ADMIN && (
-              <button onClick={() => navigate('/admin')}
-                className="bg-gray-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors">
+              <button onClick={() => navigate('/admin')} className="btn-primary">
                 ⚙️ Manage Users
               </button>
             )}

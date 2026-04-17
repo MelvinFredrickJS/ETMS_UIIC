@@ -11,9 +11,8 @@ import {
 import StatusBadge       from '../components/common/StatusBadge'
 import TypeBadge         from '../components/common/TypeBadge'
 import PriorityBadge     from '../components/common/PriorityBadge'
-import CategoryOrgGraph  from '../components/admin/CategoryOrgGraph'
 import { ROLES } from '../constants/ROLES'
-import type { User, Ticket, Category, TicketStatus, TicketTypeGroup, Asset } from '../types'
+import type { User, Ticket, Category, TicketStatus, Asset } from '../types'
 
 const ROLE_OPTIONS    = ['employee', 'manager', 'admin']
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -45,7 +44,6 @@ export default function AdminPage() {
   const [showAddForm,  setShowAddForm]  = useState(false)
   const [categories,   setCategories]   = useState<Category[]>([])
   const [teams,        setTeams]        = useState<TeamSummary[]>([])
-  const [typeGroups,   setTypeGroups]   = useState<TicketTypeGroup[]>([])
   const [toast,        setToast]        = useState('')
 
   // Add user form
@@ -123,7 +121,6 @@ export default function AdminPage() {
     getCategories().then(({ data }) => {
       const flat = data.types.flatMap(t => t.categories)
       setCategories(flat)
-      setTypeGroups(data.types)
     }).catch(() => {})
     getTeams().then(({ data }) => {
       setTeams(data.teams ?? [])
@@ -605,10 +602,6 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Category Org Graph */}
-          {!usersLoading && (
-            <CategoryOrgGraph users={users} typeGroups={typeGroups} />
-          )}
         </div>
       )}
 

@@ -118,8 +118,13 @@ export default function NewTicketPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Raise a New Ticket</h1>
+    <div className="page-wrap max-w-4xl">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Raise a New Ticket</h1>
+          <p className="page-subtitle">Follow the guided flow to submit complete details in one go.</p>
+        </div>
+      </div>
 
       {/* Pre-fill banner — shown when coming from AssetsPage */}
       {prefill && (
@@ -139,7 +144,7 @@ export default function NewTicketPage() {
       )}
 
       {/* Step indicator */}
-      <div className="flex items-center gap-2 mb-8">
+      <div className="mb-8 flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 p-3">
         {STEPS.map((s, i) => {
           const n = i + 1
           const done    = step > n
@@ -199,15 +204,14 @@ export default function NewTicketPage() {
               <input
                 type="text" required maxLength={200}
                 value={title} onChange={e => setTitle(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+                className="input-field"
               />
             </div>
 
             {/* Priority */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Priority *</label>
-              <select value={priority} onChange={e => setPriority(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]">
+              <select value={priority} onChange={e => setPriority(e.target.value)} className="input-field">
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -246,7 +250,7 @@ export default function NewTicketPage() {
               <textarea
                 required minLength={20} rows={5}
                 value={description} onChange={e => setDescription(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B] resize-none"
+                className="input-field resize-none"
               />
             </div>
 
@@ -261,7 +265,7 @@ export default function NewTicketPage() {
                     const a = myAssets.find(a => String(a.id) === e.target.value)
                     setSelectedAsset(a ?? null)
                   }}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+                  className="input-field"
                 >
                   <option value="">Select an asset…</option>
                   {myAssets.map(a => (
@@ -287,20 +291,20 @@ export default function NewTicketPage() {
                   type="file"
                   accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                   onChange={e => setFile(e.target.files?.[0] ?? null)}
-                  className="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#1B3A6B] file:text-white hover:file:bg-[#15305a]"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-[#1B3A6B] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-[#15305a]"
                 />
               )}
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="status-message-error" role="alert">{error}</p>}
 
             <div className="flex justify-between pt-2">
               <button type="button" onClick={() => setStep(2)}
-                className="border border-gray-300 text-gray-600 px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50">
+                className="btn-secondary">
                 ← Back
               </button>
               <button type="submit" disabled={submitting}
-                className="bg-[#1B3A6B] text-white px-6 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-60 hover:bg-[#15305a] transition-colors flex items-center gap-2">
+                className="btn-primary disabled:opacity-60">
                 {submitting && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                 {submitting ? 'Submitting…' : 'Submit Ticket'}
               </button>
@@ -309,7 +313,7 @@ export default function NewTicketPage() {
 
           {/* Summary card */}
           <div className="w-52 flex-shrink-0">
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sticky top-4">
+            <div className="surface-card sticky top-4 p-4">
               <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Summary</p>
               {selectedType && (
                 <div className="mb-2">

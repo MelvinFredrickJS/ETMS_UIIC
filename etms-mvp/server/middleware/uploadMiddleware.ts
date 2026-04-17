@@ -1,5 +1,6 @@
 import multer from 'multer'
 import path from 'path'
+import fs from 'fs'
 import { buildSafeFilename } from '../utils/sanitizeFilename'
 import type { Request } from 'express'
 
@@ -13,7 +14,15 @@ const ALLOWED_MIMES = [
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    cb(null, process.env.UPLOAD_DIR || './uploads')
+    const uploadDir = process.env.UPLOAD_DIR || './uploads'
+    try {
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true })
+      }
+      cb(null, uploadDir)
+    } catch (err) {
+      cb(err as Error, uploadDir)
+    }
   },
   filename: (_req, file, cb) => {
     const safeName = buildSafeFilename('tmp', file.originalname)

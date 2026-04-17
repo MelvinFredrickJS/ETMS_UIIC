@@ -58,6 +58,7 @@ export default function AdminTeamsPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null)
+  const [selectedOperationalTeamId, setSelectedOperationalTeamId] = useState<number | null>(null)
   const [teamMembersById, setTeamMembersById] = useState<Record<number, Pick<User, 'id' | 'name' | 'emp_id' | 'email'>[]>>({})
   const [membersLoadingId, setMembersLoadingId] = useState<number | null>(null)
   const [actionMessage, setActionMessage] = useState('')
@@ -170,20 +171,18 @@ export default function AdminTeamsPage() {
     return TEAM_ORDER.map(key => byKey.get(key)).filter(Boolean) as TeamView[]
   }, [teams])
 
+  const selectedOperationalTeam = useMemo(
+    () => orderedTeams.find(team => team.id === selectedOperationalTeamId) ?? null,
+    [orderedTeams, selectedOperationalTeamId]
+  )
+
   function refreshAndAnnounce(message: string) {
     setActionMessage(message)
     window.setTimeout(() => setActionMessage(''), 2500)
     loadData()
   }
 
-  async function toggleMembers(team: TeamView) {
-    if (expandedTeamId === team.id) {
-      setExpandedTeamId(null)
-      return
-    }
-
-    setExpandedTeamId(team.id)
-
+  async function ensureMembersLoaded(team: TeamView) {
     if (team.isDataTeam) {
       setTeamMembersById(prev => ({ ...prev, [team.id]: dataTeamMembers }))
       return
@@ -200,6 +199,26 @@ export default function AdminTeamsPage() {
     } finally {
       setMembersLoadingId(null)
     }
+  }
+
+  async function selectOperationalTeam(team: TeamView) {
+    if (selectedOperationalTeamId === team.id) {
+      setSelectedOperationalTeamId(null)
+      return
+    }
+
+    setSelectedOperationalTeamId(team.id)
+    await ensureMembersLoaded(team)
+  }
+
+  async function toggleMembers(team: TeamView) {
+    if (expandedTeamId === team.id) {
+      setExpandedTeamId(null)
+      return
+    }
+
+    setExpandedTeamId(team.id)
+    await ensureMembersLoaded(team)
   }
 
   function handleCreateTeam() {
@@ -277,7 +296,7 @@ export default function AdminTeamsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Teams</h1>
-          <p className="text-sm text-gray-500 mt-1">Organized view of the 8 operational teams plus the separate Data Team.</p>
+          <p className="text-sm text-gray-500 mt-1">Organized view of operational and specialist teams.</p>
         </div>
         <div className="flex flex-col items-start gap-3 sm:items-end">
           <div className="flex flex-wrap gap-2 self-start sm:self-auto">
@@ -462,16 +481,14 @@ export default function AdminTeamsPage() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">Operational Teams</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Email, VC, Infra, Network, Security, SAP, GC Master, and Reports.</p>
+                <p className="text-xs text-gray-400 mt-0.5">Core teams that handle day-to-day operations.</p>
               </div>
-              <span className="text-xs text-gray-400">Click a card to expand members</span>
+              <span className="text-xs text-gray-400">Click a card to open members popup</span>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {orderedTeams.map(team => {
-                const isExpanded = expandedTeamId === team.id
-                const members = teamMembersById[team.id] ?? []
-                const isMembersLoading = membersLoadingId === team.id
+                const isSelected = selectedOperationalTeamId === team.id
                 const memberCount = teamMemberCounts.get(team.id) ?? 0
                 const meta = TEAM_CARD_META[team.category_key] ?? TEAM_CARD_META.email_team
 
@@ -479,8 +496,8 @@ export default function AdminTeamsPage() {
                   <button
                     key={team.id}
                     type="button"
-                    onClick={() => toggleMembers(team)}
-                    className={`text-left rounded-2xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isExpanded ? meta.soft : 'border-gray-200 bg-white'}`}
+                    onClick={() => selectOperationalTeam(team)}
+                    className={`text-left rounded-2xl border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isSelected ? meta.soft : 'border-gray-200 bg-white'}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0">
@@ -500,29 +517,9 @@ export default function AdminTeamsPage() {
                     </div>
 
                     <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
-                      <span>{isExpanded ? 'Hide members' : 'Show members'}</span>
-                      <span>{isExpanded ? '▲' : '▼'}</span>
+                      <span>{isSelected ? 'Hide members' : 'Show members'}</span>
+                      <span>{isSelected ? '▲' : '▼'}</span>
                     </div>
-
-                    {isExpanded && (
-                      <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3">
-                        {isMembersLoading ? (
-                          <p className="text-sm text-gray-500 py-2">Loading members...</p>
-                        ) : members.length === 0 ? (
-                          <p className="text-sm text-gray-500 py-2">No members assigned.</p>
-                        ) : (
-                          <ul className="space-y-2">
-                            {members.map(member => (
-                              <li key={member.id} className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                                <span className="font-medium">{member.name}</span>
-                                <span className="text-gray-500"> ({member.emp_id})</span>
-                                <div className="text-xs text-gray-400">{member.email}</div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
                   </button>
                 )
               })}
@@ -667,6 +664,59 @@ export default function AdminTeamsPage() {
           )}
         </div>
       )}
+
+      {selectedOperationalTeam && (() => {
+        const members = teamMembersById[selectedOperationalTeam.id] ?? []
+        const isMembersLoading = membersLoadingId === selectedOperationalTeam.id
+        const meta = TEAM_CARD_META[selectedOperationalTeam.category_key] ?? TEAM_CARD_META.email_team
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${selectedOperationalTeam.name} members`}
+            onClick={() => setSelectedOperationalTeamId(null)}
+          >
+            <div
+              className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className={`flex items-center justify-between gap-4 border-b px-6 py-4 ${meta.soft}`}>
+                <div className="min-w-0">
+                  <p className={`text-base font-bold ${meta.accent}`}>{selectedOperationalTeam.name} Members</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{selectedOperationalTeam.category_key}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOperationalTeamId(null)}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="max-h-[65vh] overflow-auto px-6 py-5">
+                {isMembersLoading ? (
+                  <p className="text-sm text-gray-500 py-2">Loading members...</p>
+                ) : members.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-2">No members assigned.</p>
+                ) : (
+                  <ul className="grid gap-2 md:grid-cols-2">
+                    {members.map(member => (
+                      <li key={member.id} className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                        <span className="font-medium">{member.name}</span>
+                        <span className="text-gray-500"> ({member.emp_id})</span>
+                        <div className="text-xs text-gray-400">{member.email}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

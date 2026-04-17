@@ -63,6 +63,7 @@ interface FindAllOptions {
   exclude_reapproval_pending?: boolean
   status?: string
   ticket_type_id?: number
+  ticket_id?: string
   category_id?: number
   category_ids?: number[]
   priority?: string
@@ -73,7 +74,7 @@ interface FindAllOptions {
 async function findAll(options: FindAllOptions = {}): Promise<{ rows: TicketRow[]; total: number }> {
   const {
     raised_by, assigned_to, approval_owner_id, exclude_reapproval_pending, status, ticket_type_id,
-    category_id, category_ids, priority,
+    ticket_id, category_id, category_ids, priority,
     page = 1, limit = 15
   } = options
 
@@ -111,6 +112,11 @@ async function findAll(options: FindAllOptions = {}): Promise<{ rows: TicketRow[
   if (ticket_type_id) {
     where.push(`t.ticket_type_id = $${idx++}`)
     params.push(ticket_type_id)
+  }
+  if (ticket_id?.trim()) {
+    where.push(`(CAST(t.id AS TEXT) ILIKE $${idx} OR t.ticket_no ILIKE $${idx})`)
+    params.push(`%${ticket_id.trim()}%`)
+    idx++
   }
   if (priority) {
     where.push(`t.priority = $${idx++}`)
@@ -185,10 +191,11 @@ async function findPendingForManager(approval_owner_id: number): Promise<TicketR
 }
 
 async function updateStatus(id: number, status: TicketStatus): Promise<TicketRow | null> {
-  const shouldClearEscalation = status === 'resolved' || status === 'closed'
+  const shouldClearEscalation = status === 'closed'
   const { rows } = await pool.query<TicketRow>(
     `UPDATE tickets
      SET status = $2,
+         report_reason = CASE WHEN $3 THEN NULL ELSE report_reason END,
          escalated = CASE WHEN $3 THEN FALSE ELSE escalated END,
          updated_at = NOW()
      WHERE id = $1
@@ -208,11 +215,17 @@ async function updateStatusWithNote(
   if (!ALLOWED_FIELDS.includes(field)) {
     throw new Error(`Invalid field name: ${field}`)
   }
-  const shouldClearEscalation = status === 'resolved' || status === 'closed'
+  const shouldClearEscalation = status === 'closed'
+  const clearReportReasonClause =
+    field === 'report_reason'
+      ? ''
+      : 'report_reason = CASE WHEN $4 THEN NULL ELSE report_reason END,'
+
   const { rows } = await pool.query<TicketRow>(
     `UPDATE tickets
      SET status = $2,
          ${field} = $3,
+         ${clearReportReasonClause}
          escalated = CASE WHEN $4 THEN FALSE ELSE escalated END,
          updated_at = NOW()
      WHERE id = $1

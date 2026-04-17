@@ -67,11 +67,18 @@ async function getEmployeesByCategory(req: Request, res: Response): Promise<void
       const managedCategoryIds = new Set(managedCategories.map(c => Number(c.id)))
       const requestedCategoryId = Number(categoryId)
       const effectiveCategoryId = Number(teamId ?? categoryId)
+      const hasExplicitCategoryOwner = Number(category.manager_user_id ?? 0) > 0
 
       const canViewRequestedCategory = managedCategoryIds.has(requestedCategoryId)
       const canViewMappedTeam = managedCategoryIds.has(effectiveCategoryId)
 
-      if (!canViewRequestedCategory && !canViewMappedTeam) {
+      // If a category has an explicit manager owner, enforce that owner boundary.
+      // Team mapping is only a fallback for legacy/unowned categories.
+      const canView = hasExplicitCategoryOwner
+        ? canViewRequestedCategory
+        : (canViewRequestedCategory || canViewMappedTeam)
+
+      if (!canView) {
         res.status(403).json({ success: false, message: 'Access denied for this category.' }); return
       }
     }

@@ -6,7 +6,7 @@ const ALLOWED_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
   approved:         ['assigned'],
   assigned:         ['in_progress'],
   in_progress:      ['resolved', 'reported'],
-  reported:         ['pending_approval'],
+  reported:         ['closed', 'pending_approval'],
   resolved:         ['closed', 'reported'],
   rejected:         [],
   closed:           [],
@@ -32,11 +32,14 @@ function validateTransition(fromStatus: TicketStatus, toStatus: TicketStatus, ac
   }
 
   if (actorRole === ROLES.EMPLOYEE) {
-    if (!(['assigned', 'in_progress', 'resolved'] as TicketStatus[]).includes(fromStatus)) {
-      return { valid: false, reason: 'Employees can only act on assigned, in_progress, or resolved tickets.' }
+    if (!(['assigned', 'in_progress', 'resolved', 'reported'] as TicketStatus[]).includes(fromStatus)) {
+      return { valid: false, reason: 'Employees can only act on assigned, in_progress, resolved, or reported tickets.' }
     }
     if (fromStatus === 'resolved' && !(['closed', 'reported'] as TicketStatus[]).includes(toStatus)) {
       return { valid: false, reason: 'Resolved tickets can only be closed or reported by the raiser.' }
+    }
+    if (fromStatus === 'reported' && !(['closed', 'pending_approval'] as TicketStatus[]).includes(toStatus)) {
+      return { valid: false, reason: 'Reported tickets can only be closed or sent back for manager approval.' }
     }
     if ((['assigned', 'in_progress'] as TicketStatus[]).includes(fromStatus) &&
         !(['in_progress', 'resolved', 'reported'] as TicketStatus[]).includes(toStatus)) {
@@ -54,7 +57,7 @@ function validateTransition(fromStatus: TicketStatus, toStatus: TicketStatus, ac
 function getAllowedNextStatuses(fromStatus: TicketStatus, actorRole: Role): TicketStatus[] {
   const all = ALLOWED_TRANSITIONS[fromStatus] ?? []
 
-  if ((['approved', 'reported', 'closed', 'rejected'] as TicketStatus[]).includes(fromStatus)) {
+  if ((['approved', 'closed', 'rejected'] as TicketStatus[]).includes(fromStatus)) {
     return []
   }
 
@@ -65,12 +68,18 @@ function getAllowedNextStatuses(fromStatus: TicketStatus, actorRole: Role): Tick
     if (fromStatus === 'resolved') {
       return all.filter(s => (['closed', 'reported'] as TicketStatus[]).includes(s))
     }
+    if (fromStatus === 'reported') {
+      return all.filter(s => (['closed', 'pending_approval'] as TicketStatus[]).includes(s))
+    }
     return all.filter(s => (['in_progress', 'resolved', 'reported'] as TicketStatus[]).includes(s))
   }
 
   if (actorRole === ROLES.EMPLOYEE) {
     if (fromStatus === 'resolved') {
       return all.filter(s => (['closed', 'reported'] as TicketStatus[]).includes(s))
+    }
+    if (fromStatus === 'reported') {
+      return all.filter(s => (['closed', 'pending_approval'] as TicketStatus[]).includes(s))
     }
     return all.filter(s => (['in_progress', 'resolved', 'reported'] as TicketStatus[]).includes(s))
   }

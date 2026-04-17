@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import type { Request, Response } from 'express'
 import ROLES from '../constants/ROLES'
 import * as ticketModel from '../models/ticketModel'
@@ -6,52 +8,75 @@ import * as userModel from '../models/userModel'
 import * as emailService from '../services/emailService'
 import { getNextEmployeeInCategory } from '../services/assignmentService'
 import generateTicketId from '../utils/generateTicketId'
+import { buildSafeFilename } from '../utils/sanitizeFilename'
 import type { TicketRow } from '../types'
 
 async function createTicket(req: Request, res: Response): Promise<void> {
+  let tmpFilePath: string | null = null
   try {
     if (req.user.role !== ROLES.DATA_TEAM) {
       res.status(403).json({ success: false, message: 'Access denied.' })
       return
     }
 
-    const { title, description, ticket_type_id, category_id, priority, sla_days } = req.body as {
+    const { title, description, ticket_type_id, category_id, priority, sla_days, assigned_team_key } = req.body as {
       title?: string
       description?: string
       ticket_type_id?: string
       category_id?: string
       priority?: string
       sla_days?: string
+      assigned_team_key?: string
     }
 
     const slaDays = Math.min(30, Math.max(1, Number(sla_days ?? 3)))
     const PRIORITY_VALUES = ['low', 'medium', 'high', 'critical']
 
     if (!title || !description || !ticket_type_id || !category_id || !priority) {
+      if (req.file) fs.unlink(req.file.path, () => {})
       res.status(400).json({ success: false, message: 'All fields are required.' }); return
     }
     if (String(title).trim().length < 5 || String(title).trim().length > 200) {
+      if (req.file) fs.unlink(req.file.path, () => {})
       res.status(400).json({ success: false, message: 'title must be between 5 and 200 characters.' }); return
     }
     if (String(description).trim().length < 20) {
+      if (req.file) fs.unlink(req.file.path, () => {})
       res.status(400).json({ success: false, message: 'description must be at least 20 characters.' }); return
     }
     if (!PRIORITY_VALUES.includes(String(priority))) {
+      if (req.file) fs.unlink(req.file.path, () => {})
       res.status(400).json({ success: false, message: 'priority must be one of: low, medium, high, critical.' }); return
     }
     if (!Number.isFinite(slaDays) || slaDays < 1 || slaDays > 30) {
+      if (req.file) fs.unlink(req.file.path, () => {})
       res.status(400).json({ success: false, message: 'sla_days must be between 1 and 30.' }); return
     }
 
+    if (req.file) tmpFilePath = req.file.path
+
     const category = await categoryModel.findById(Number(category_id))
     if (!category) {
+      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
       res.status(400).json({ success: false, message: 'Category not found.' }); return
     }
     if (Number(category.ticket_type_id) !== Number(ticket_type_id)) {
+      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
       res.status(400).json({ success: false, message: 'Category does not belong to the selected ticket type.' }); return
     }
     if (category.type_key !== 'data') {
+      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
       res.status(400).json({ success: false, message: 'Data portal can only raise data tickets.' }); return
+    }
+
+    const requestedTeamKey = String(assigned_team_key ?? '').trim()
+    const targetTeam = requestedTeamKey
+      ? await categoryModel.findByKey(requestedTeamKey)
+      : (category.assigned_team_key ? await categoryModel.findByKey(category.assigned_team_key) : null)
+
+    if (!targetTeam || !targetTeam.is_team) {
+      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      res.status(400).json({ success: false, message: 'Selected target team is invalid.' }); return
     }
 
     const ticket_no = await generateTicketId(category.type_key!)
@@ -71,14 +96,43 @@ async function createTicket(req: Request, res: Response): Promise<void> {
     await ticketModel.logAction({
       ticket_id: ticket.id,
       action: 'TICKET_CREATED',
-      new_status: 'pending_approval',
+      new_status: null,
       performed_by: req.user.id,
     })
 
-    const targetTeam = category.assigned_team_key ? await categoryModel.findByKey(category.assigned_team_key) : null
-    if (!targetTeam) {
-      res.status(400).json({ success: false, message: 'Data category is not mapped to a team.' }); return
+    if (req.file && tmpFilePath) {
+      const finalName = buildSafeFilename(ticket.id, req.file.originalname)
+      const uploadDir = process.env.UPLOAD_DIR || './uploads'
+      const finalPath = path.join(uploadDir, finalName)
+
+      try {
+        fs.renameSync(tmpFilePath, finalPath)
+        tmpFilePath = null
+
+        await ticketModel.saveAttachment({
+          ticket_id: ticket.id,
+          filename: finalName,
+          original_name: req.file.originalname,
+          file_path: finalPath,
+          file_size: req.file.size,
+          mime_type: req.file.mimetype,
+          uploaded_by: req.user.id,
+        })
+      } catch (fileErr) {
+        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+        else fs.unlink(finalPath, () => {})
+        console.error('Data portal file handling error:', fileErr)
+      }
     }
+
+    await ticketModel.logAction({
+      ticket_id: ticket.id,
+      action: 'TEAM_ROUTED',
+      old_status: null,
+      new_status: null,
+      performed_by: req.user.id,
+      note: `Routed to ${targetTeam.name}`,
+    })
 
     let employee
     try {
@@ -101,9 +155,38 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       }
     }
 
-    res.status(201).json({ success: true, ticket: await ticketModel.findById(ticket.id) })
+    res.status(201).json({
+      success: true,
+      ticket: await ticketModel.findById(ticket.id),
+      routed_team: {
+        id: targetTeam.id,
+        name: targetTeam.name,
+        category_key: targetTeam.category_key,
+      },
+    })
   } catch (err) {
+    if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
     console.error('dataPortal createTicket error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+async function listTeams(req: Request, res: Response): Promise<void> {
+  try {
+    if (req.user.role !== ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
+
+    const teams = (await categoryModel.findTeams()).map((team) => ({
+      id: team.id,
+      name: team.name,
+      category_key: team.category_key,
+    }))
+
+    res.status(200).json({ success: true, teams })
+  } catch (err) {
+    console.error('dataPortal listTeams error:', err)
     res.status(500).json({ success: false, message: 'Internal server error.' })
   }
 }
@@ -169,4 +252,4 @@ async function getTicketById(req: Request, res: Response): Promise<void> {
   }
 }
 
-export { createTicket, listTickets, getTicketById }
+export { createTicket, listTickets, getTicketById, listTeams }

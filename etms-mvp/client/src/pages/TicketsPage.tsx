@@ -47,6 +47,7 @@ export default function TicketsPage() {
   const [filterType,     setFilterType]     = useState('')
   const [filterStatus,   setFilterStatus]   = useState('')
   const [filterPriority, setFilterPriority] = useState('')
+  const [filterTicketId, setFilterTicketId] = useState('')
 
   const pageTitle = user?.role === ROLES.ADMIN ? 'All Tickets'
     : user?.role === ROLES.MANAGER ? 'Managed Tickets'
@@ -65,7 +66,7 @@ export default function TicketsPage() {
 
   useEffect(() => {
     fetchTickets()
-  }, [page, filterType, filterStatus, filterPriority])
+  }, [page, filterType, filterStatus, filterPriority, filterTicketId])
 
   async function fetchTickets() {
     setLoading(true)
@@ -74,6 +75,7 @@ export default function TicketsPage() {
       if (filterType)     params['type']     = filterType
       if (filterStatus)   params['status']   = filterStatus
       if (filterPriority) params['priority'] = filterPriority
+      if (filterTicketId.trim()) params['ticket_id'] = filterTicketId.trim()
 
       const { data } = await getTickets(params)
       setTickets(data.tickets)
@@ -89,23 +91,37 @@ export default function TicketsPage() {
     }
   }
 
-  const selectClass = 'border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]'
+  function handleTicketIdChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setFilterTicketId(e.target.value)
+    setPage(1)
+  }
+
+  const selectClass = 'input-field min-w-[170px]'
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="page-wrap">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">{pageTitle}</h1>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">{pageTitle}</h1>
+          <p className="page-subtitle">Track, filter, and act on tickets with role-based visibility.</p>
+        </div>
         {user?.role === ROLES.EMPLOYEE && (
-          <button onClick={() => navigate('/tickets/new')}
-            className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#15305a] transition-colors">
+          <button onClick={() => navigate('/tickets/new')} className="btn-primary">
             ➕ Raise Ticket
           </button>
         )}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="filter-bar">
+        <input
+          type="text"
+          value={filterTicketId}
+          onChange={handleTicketIdChange}
+          className={selectClass}
+          placeholder="Search by Ticket ID"
+        />
         <select value={filterType}     onChange={handleFilterChange(setFilterType)}     className={selectClass}>
           {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -123,7 +139,7 @@ export default function TicketsPage() {
           <div className="w-8 h-8 border-4 border-[#1B3A6B] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : tickets.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">
+        <div className="surface-card text-center py-20 text-slate-400">
           <p className="text-4xl mb-3">📭</p>
           <p className="text-sm">No tickets found</p>
         </div>
@@ -139,15 +155,15 @@ export default function TicketsPage() {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-4 py-2 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+            className="btn-secondary disabled:opacity-40"
           >
             ← Prev
           </button>
-          <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
+          <span className="text-sm text-slate-500">Page {page} of {totalPages}</span>
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="px-4 py-2 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+            className="btn-secondary disabled:opacity-40"
           >
             Next →
           </button>

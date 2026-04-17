@@ -7,7 +7,11 @@
     "dev:client": "cd client && npm run dev",
     "dev":        "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "setup:db":   "psql -U postgres -d ETMS -f database/schema.sql",
-    "seed:db":    "psql -U postgres -d ETMS -f database/seed.sql"
+    "seed:db":    "psql -U postgres -d ETMS -f database/seed.sql",
+    "test:manager": "node test-manager-role-100.js",
+    "test:data-portal-routing": "node test-data-portal-routing.js",
+    "test:ticket-cycle-consistency": "node test-ticket-cycle-consistency.js",
+    "test:reported-transition": "node test-reported-transition.js"
   },
   "devDependencies": {
     "concurrently": "^8.0.0"

@@ -7,14 +7,14 @@ interface Props {
 
 export default function AppLayout({ children }: Props) {
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden">
       {/* Fixed sidebar */}
-      <div className="w-60 flex-shrink-0 h-full bg-white shadow-md">
+      <aside className="w-64 flex-shrink-0 h-full border-r border-slate-200/80 bg-white/95 backdrop-blur-sm">
         <Sidebar />
-      </div>
+      </aside>
 
       {/* Scrollable main content */}
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-5 sm:p-6 lg:p-8" role="main">
         {children}
       </main>
     </div>

@@ -215,13 +215,14 @@ async function listTickets(req: Request, res: Response): Promise<void> {
       res.status(403).json({ success: false, message: 'Access denied.' })
       return
     }
-    const { status, type: ticket_type_id, priority, page = '1', limit = '15' } = req.query as Record<string, string>
+    const { status, type: ticket_type_id, priority, ticket_id, page = '1', limit = '15' } = req.query as Record<string, string>
     const pageNum  = Math.max(1, Number(page))
     const limitNum = Math.min(100, Math.max(1, Number(limit)))
     const filters = {
       status,
       ticket_type_id: ticket_type_id ? Number(ticket_type_id) : undefined,
       priority,
+      ticket_id,
       page: pageNum,
       limit: limitNum,
     }
@@ -236,8 +237,6 @@ async function listTickets(req: Request, res: Response): Promise<void> {
         approval_owner_id: req.user.id,
         exclude_reapproval_pending: true,
       })
-    } else if (req.user.role === ROLES.DATA_TEAM) {
-      result = await ticketModel.findAll({ ...filters, raised_by: req.user.id })
     } else {
       const view = req.query.view as string | undefined
       if (view === 'raised') {
@@ -311,6 +310,7 @@ async function getAllowedStatuses(req: Request, res: Response): Promise<void> {
     if (!allowed) { res.status(403).json({ success: false, message: 'You do not have permission to view this ticket.' }); return }
 
     let allowedStatuses = getAllowedNextStatuses(ticket.status, req.user.role as Role)
+    const canEscalateToManager = ticket.type_key === 'request'
 
     if (req.user.role === ROLES.DATA_TEAM) {
       allowedStatuses = []
@@ -321,7 +321,12 @@ async function getAllowedStatuses(req: Request, res: Response): Promise<void> {
     if (ticket.status === 'resolved' && Number(req.user.id) !== Number(ticket.raised_by)) {
       allowedStatuses = []
     }
-    if ((['approved', 'reported', 'closed', 'rejected'] as TicketStatus[]).includes(ticket.status)) {
+    if (!canEscalateToManager) {
+      allowedStatuses = allowedStatuses.filter(
+        next => next !== 'reported' && next !== 'pending_approval'
+      )
+    }
+    if ((['approved', 'closed', 'rejected'] as TicketStatus[]).includes(ticket.status)) {
       allowedStatuses = []
     }
 
@@ -354,9 +359,9 @@ async function updateTicketStatus(req: Request, res: Response): Promise<void> {
       if (Number(req.user.id) !== Number(ticket.assigned_to)) {
         res.status(403).json({ success: false, message: 'You do not have permission to update this ticket.' }); return
       }
-    } else if (ticket.status === 'resolved') {
+    } else if (['resolved', 'reported'].includes(ticket.status)) {
       if (Number(req.user.id) !== Number(ticket.raised_by)) {
-        res.status(403).json({ success: false, message: 'Only the ticket creator can close or report a resolved ticket.' }); return
+        res.status(403).json({ success: false, message: 'Only the ticket creator can close or escalate this ticket.' }); return
       }
     } else {
       res.status(403).json({ success: false, message: 'You do not have permission to update this ticket.' }); return
@@ -366,33 +371,94 @@ async function updateTicketStatus(req: Request, res: Response): Promise<void> {
     if (!valid) { res.status(400).json({ success: false, message: reason }); return }
 
     if (status === 'reported') {
-      const escalationReason = String(report_reason ?? note ?? '').trim()
+      const reason = String(report_reason ?? note ?? '').trim()
+      const canEscalateToManager = ticket.type_key === 'request'
 
-      if (ticket.status === 'resolved' && escalationReason.length < 10) {
-        res.status(400).json({ success: false, message: 'report_reason must be at least 10 characters.' }); return
-      }
+      // Assignee report during work should hand off back to the raiser,
+      // not trigger escalation/re-approval with manager.
+      if (ticket.status === 'in_progress') {
+        if (reason.length < 10) {
+          res.status(400).json({ success: false, message: 'report_reason must be at least 10 characters.' }); return
+        }
 
-      await ticketModel.updateStatusWithNote(id, 'reported', 'report_reason', escalationReason || null)
-      await ticketModel.logAction({ ticket_id: id, action: 'ESCALATED', old_status: ticket.status, new_status: 'reported', performed_by: req.user.id, note: escalationReason || null })
+        const updated = await ticketModel.updateStatusWithNote(id, 'reported', 'report_reason', reason || null)
+        if (!updated || updated.status !== 'reported') {
+          res.status(500).json({ success: false, message: 'Failed to persist reported status.' }); return
+        }
 
-      await ticketModel.updateStatus(id, 'pending_approval')
-      await ticketModel.logAction({ ticket_id: id, action: 'BACK_TO_MANAGER', old_status: 'reported', new_status: 'pending_approval', performed_by: null })
+        await ticketModel.logAction({
+          ticket_id: id,
+          action: 'REPORTED_BY_ASSIGNEE',
+          old_status: 'in_progress',
+          new_status: 'reported',
+          performed_by: req.user.id,
+          note: reason || null,
+        })
 
-      const category  = await categoryModel.findById(ticket.category_id)
-      const fullTicket = await ticketModel.findById(id)
-      if (fullTicket && category?.manager_email) {
-        emailService.sendEscalationEmail(fullTicket, category.manager_email).catch(err => console.error('Email error:', (err as Error).message))
-      }
-    } else {
-      await ticketModel.updateStatus(id, status as TicketStatus)
-      const action = ticket.status === 'assigned' && status === 'in_progress' ? 'WORK_STARTED' : 'STATUS_CHANGED'
-      await ticketModel.logAction({ ticket_id: id, action, old_status: ticket.status, new_status: status as TicketStatus, performed_by: req.user.id, note: note ?? null })
-
-      if (status === 'resolved') {
-        const raiser     = await userModel.findById(ticket.raised_by)
+        const raiser = await userModel.findById(ticket.raised_by)
         const fullTicket = await ticketModel.findById(id)
         if (fullTicket && raiser) {
+          // Notify raiser while preserving reported status semantics.
           emailService.sendTicketResolvedEmail(fullTicket, raiser.email).catch(err => console.error('Email error:', (err as Error).message))
+        }
+      } else {
+        if (!canEscalateToManager) {
+          res.status(400).json({ success: false, message: 'Only request tickets can be escalated to manager.' }); return
+        }
+
+        if (ticket.status === 'resolved' && reason.length < 10) {
+          res.status(400).json({ success: false, message: 'report_reason must be at least 10 characters.' }); return
+        }
+
+        await ticketModel.updateStatusWithNote(id, 'reported', 'report_reason', reason || null)
+        await ticketModel.logAction({ ticket_id: id, action: 'ESCALATED', old_status: ticket.status, new_status: 'reported', performed_by: req.user.id, note: reason || null })
+
+        await ticketModel.updateStatus(id, 'pending_approval')
+        await ticketModel.logAction({ ticket_id: id, action: 'BACK_TO_MANAGER', old_status: 'reported', new_status: 'pending_approval', performed_by: null })
+
+        const category  = await categoryModel.findById(ticket.category_id)
+        const fullTicket = await ticketModel.findById(id)
+        if (fullTicket && category?.manager_email) {
+          emailService.sendEscalationEmail(fullTicket, category.manager_email).catch(err => console.error('Email error:', (err as Error).message))
+        }
+      }
+    } else {
+      if (ticket.status === 'reported' && status === 'pending_approval') {
+        if (ticket.type_key !== 'request') {
+          res.status(400).json({ success: false, message: 'Only request tickets can be escalated to manager.' }); return
+        }
+
+        const escalationReason = String(note ?? report_reason ?? '').trim()
+        if (escalationReason.length < 10) {
+          res.status(400).json({ success: false, message: 'report_reason must be at least 10 characters.' }); return
+        }
+
+        await ticketModel.updateStatusWithNote(id, 'pending_approval', 'report_reason', escalationReason)
+        await ticketModel.logAction({
+          ticket_id: id,
+          action: 'BACK_TO_MANAGER',
+          old_status: 'reported',
+          new_status: 'pending_approval',
+          performed_by: req.user.id,
+          note: escalationReason,
+        })
+
+        const category  = await categoryModel.findById(ticket.category_id)
+        const fullTicket = await ticketModel.findById(id)
+        if (fullTicket && category?.manager_email) {
+          emailService.sendEscalationEmail(fullTicket, category.manager_email).catch(err => console.error('Email error:', (err as Error).message))
+        }
+      } else {
+        await ticketModel.updateStatus(id, status as TicketStatus)
+        const action = ticket.status === 'assigned' && status === 'in_progress' ? 'WORK_STARTED' : 'STATUS_CHANGED'
+        await ticketModel.logAction({ ticket_id: id, action, old_status: ticket.status, new_status: status as TicketStatus, performed_by: req.user.id, note: note ?? null })
+
+        if (status === 'resolved') {
+          const raiser     = await userModel.findById(ticket.raised_by)
+          const fullTicket = await ticketModel.findById(id)
+          if (fullTicket && raiser) {
+            emailService.sendTicketResolvedEmail(fullTicket, raiser.email).catch(err => console.error('Email error:', (err as Error).message))
+          }
         }
       }
     }

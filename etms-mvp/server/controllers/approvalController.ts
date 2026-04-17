@@ -143,30 +143,6 @@ async function reapproveTicket(req: Request, res: Response): Promise<void> {
       res.status(400).json({ success: false, message: 'This is not an escalated ticket.' }); return
     }
 
-    const logs = await ticketModel.getLogs(ticketId)
-    const hasEscalatedLog = logs.some(l => l.action === 'ESCALATED')
-    const hasBackToManagerLog = logs.some(l => l.action === 'BACK_TO_MANAGER')
-
-    if (!hasEscalatedLog) {
-      await ticketModel.logAction({
-        ticket_id: ticketId,
-        action: 'ESCALATED',
-        old_status: null,
-        new_status: 'reported',
-        performed_by: null,
-        note: ticket.report_reason,
-      })
-    }
-    if (!hasBackToManagerLog) {
-      await ticketModel.logAction({
-        ticket_id: ticketId,
-        action: 'BACK_TO_MANAGER',
-        old_status: 'reported',
-        new_status: 'pending_approval',
-        performed_by: null,
-      })
-    }
-
     const { assigned_to } = req.body as { assigned_to?: string }
     if (!assigned_to) { res.status(400).json({ success: false, message: 'assigned_to is required.' }); return }
 

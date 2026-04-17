@@ -14,6 +14,7 @@ export interface TicketListParams {
   status?: string
   type?: string
   priority?: string
+  ticket_id?: string
 }
 
 export interface TicketListResponse {
@@ -57,6 +58,11 @@ export const getDataPortalTickets = (params?: TicketListParams) =>
 export const getDataPortalTicketById = (id: string | number) =>
   api.get<{ success: boolean; ticket: Ticket; attachments: Attachment[]; logs: TicketLog[] }>(
     `/data-portal/tickets/${id}`
+  )
+
+export const getDataPortalTeams = () =>
+  api.get<{ success: boolean; teams: Array<{ id: number; name: string; category_key: string }> }>(
+    '/data-portal/teams'
   )
 
 export const updateStatus = (id: string | number, status: TicketStatus, note?: string) =>

@@ -34,7 +34,15 @@ export default function TicketCard({ ticket }: Props) {
   return (
     <div
       onClick={() => navigate(`/tickets/${id}`)}
-      className={`${statusStyle.bg} rounded-lg border-l-4 ${typeConfig.border} border ${statusStyle.border} p-4 shadow-sm hover:shadow-md cursor-pointer transition-all`}
+      className={`${statusStyle.bg} interactive-card rounded-xl border ${statusStyle.border} border-l-4 ${typeConfig.border} p-4 shadow-sm cursor-pointer transition-all duration-200`}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          navigate(`/tickets/${id}`)
+        }
+      }}
     >
       {/* Row 1: badges */}
       <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -46,18 +54,18 @@ export default function TicketCard({ ticket }: Props) {
       </div>
 
       {/* Ticket number */}
-      <p className="text-xs text-gray-400 font-mono mb-1">{ticket_no}</p>
+      <p className="mb-1 font-mono text-xs text-slate-500">{ticket_no}</p>
 
       {/* Title */}
-      <p className="font-semibold text-gray-800 text-sm line-clamp-2 mb-1">{title}</p>
+      <p className="mb-1 line-clamp-2 text-sm font-semibold text-slate-900">{title}</p>
 
       {/* Category */}
-      <p className="text-xs text-gray-500 mb-3">{category_name}</p>
+      <p className="mb-3 text-xs text-slate-600">{category_name}</p>
 
       {/* Bottom row */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-400">Raised by {raised_by_name}</span>
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-slate-500">Raised by {raised_by_name}</span>
+        <span className="text-xs text-slate-500">
           {created_at ? `${formatDistanceToNow(new Date(created_at))} ago` : '—'}
         </span>
       </div>

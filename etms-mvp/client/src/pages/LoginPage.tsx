@@ -44,43 +44,46 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#1B3A6B] flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-xl p-8">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200/70 bg-white p-8 shadow-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[#1B3A6B]">ETMS</h1>
-          <p className="text-sm text-gray-400 mt-1">United India Insurance Co. Ltd.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-[#1B3A6B]">ETMS</h1>
+          <p className="mt-1 text-sm text-slate-500">United India Insurance Co. Ltd.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label htmlFor="email" className="field-label">Email</label>
             <input
+              id="email"
               type="email"
               required
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@uiic.co.in"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+              className="input-field"
             />
           </div>
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label htmlFor="password" className="field-label">Password</label>
             <div className="relative">
               <input
+                id="password"
                 type={showPw ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A6B]"
+                className="input-field pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPw(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 hover:text-slate-700"
+                aria-label={showPw ? 'Hide password' : 'Show password'}
               >
                 {showPw ? 'Hide' : 'Show'}
               </button>
@@ -88,13 +91,13 @@ export default function LoginPage() {
           </div>
 
           {/* Error */}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="status-message-error" role="alert" aria-live="assertive">{error}</p>}
 
           {/* Submit */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#1B3A6B] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-[#15305a] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            className="btn-primary w-full disabled:opacity-60"
           >
             {loading && (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

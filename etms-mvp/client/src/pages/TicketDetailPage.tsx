@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { formatDistanceToNow, format } from 'date-fns'
 import { useAuth } from '../context/AuthContext'
@@ -99,6 +99,31 @@ export default function TicketDetailPage() {
     }
   }
 
+  const latestAssigneeReportLog = useMemo(() => {
+    for (let i = logs.length - 1; i >= 0; i -= 1) {
+      const log = logs[i]
+      if (log.action === 'REPORTED_BY_ASSIGNEE' || log.action === 'REPORTED_TO_RAISER') {
+        return log
+      }
+    }
+    return null
+  }, [logs])
+
+  const assigneeReportMessage = useMemo(() => {
+    const ticketReason = (ticket?.report_reason ?? '').trim()
+    if (ticketReason) return ticketReason
+
+    for (let i = logs.length - 1; i >= 0; i -= 1) {
+      const log = logs[i]
+      if (log.action !== 'REPORTED_BY_ASSIGNEE') continue
+      const note = (log.note ?? '').trim()
+      if (note) return note
+    }
+
+    if (!latestAssigneeReportLog) return ''
+    return 'Ticket was reported by assignee without an additional message.'
+  }, [ticket?.report_reason, logs, latestAssigneeReportLog])
+
   if (loading) return (
     <div className="flex justify-center py-20">
       <div className="w-8 h-8 border-4 border-[#1B3A6B] border-t-transparent rounded-full animate-spin" />
@@ -116,6 +141,7 @@ export default function TicketDetailPage() {
   const isAssignee = Number(ticket.assigned_to) === Number(user.id)
   const isReapproval = ticket.status === 'pending_approval' && !!ticket.report_reason
   const canManageApproval = user.role === ROLES.MANAGER && Number(ticket.approval_owner_id) === Number(user.id)
+  const canEscalateToManager = ticket.type_key === 'request'
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -315,19 +341,26 @@ export default function TicketDetailPage() {
               </>
             )}
 
-            {/* EMPLOYEE / MANAGER — resolved (creator only) */}
-            {['employee','manager'].includes(user.role) && ticket.status === 'resolved' && isCreator && (
+            {/* EMPLOYEE / MANAGER — resolved/reported (creator only) */}
+            {['employee','manager'].includes(user.role) && ['resolved', 'reported'].includes(ticket.status) && isCreator && (
               <>
+                {latestAssigneeReportLog && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                    ⚠️ Reported by assignee: {assigneeReportMessage}
+                  </div>
+                )}
                 <button
                   onClick={() => doAction(() => updateStatus(id!, 'closed'), 'Ticket closed.')}
                   className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-green-700"
                 >
                   ✅ Close Ticket
                 </button>
-                <button onClick={() => setReportModal(true)}
-                  className="w-full bg-rose-50 text-rose-600 border border-rose-200 py-2 rounded-lg text-sm font-semibold hover:bg-rose-100">
-                  🚩 Report Back to Manager
-                </button>
+                {canEscalateToManager && (
+                  <button onClick={() => setReportModal(true)}
+                    className="w-full bg-rose-50 text-rose-600 border border-rose-200 py-2 rounded-lg text-sm font-semibold hover:bg-rose-100">
+                    🚩 Escalate to Manager
+                  </button>
+                )}
               </>
             )}
 
@@ -378,7 +411,7 @@ export default function TicketDetailPage() {
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
             <h2 className="text-lg font-bold text-gray-800 mb-1">Report Issue</h2>
             <p className="text-xs text-gray-400 mb-4">
-              {ticket.status === 'resolved'
+              {ticket.status === 'resolved' || ticket.status === 'in_progress' || ticket.status === 'reported'
                 ? 'Reason is required (min 10 chars).'
                 : 'Reason is optional.'}
             </p>
@@ -394,11 +427,13 @@ export default function TicketDetailPage() {
                 Cancel
               </button>
               <button
-                disabled={ticket.status === 'resolved' && reportReason.trim().length < 10}
+                disabled={(ticket.status === 'resolved' || ticket.status === 'in_progress' || ticket.status === 'reported') && reportReason.trim().length < 10}
                 onClick={() =>
                   doAction(
-                    () => updateStatus(id!, 'reported', reportReason),
-                    'Ticket reported. Manager has been notified.'
+                    () => updateStatus(id!, ticket.status === 'reported' ? 'pending_approval' : 'reported', reportReason),
+                    ticket.status === 'in_progress'
+                      ? 'Ticket reported back to raiser for confirmation.'
+                      : 'Ticket escalated to manager.'
                   ).then(() => { setReportModal(false); setReportReason('') })
                 }
                 className="flex-1 bg-rose-600 text-white py-2 rounded-lg text-sm font-semibold disabled:opacity-40 hover:bg-rose-700"
