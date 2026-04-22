@@ -11,7 +11,7 @@ function generateToken(user: Pick<UserRow, 'id' | 'role' | 'emp_id'>): string {
   return jwt.sign(
     { id: user.id, role: user.role, emp_id: user.emp_id },
     process.env.JWT_SECRET as string,
-    { expiresIn: '1h' }
+    { expiresIn: '8h' }
   )
 }
 

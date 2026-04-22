@@ -71,6 +71,20 @@ CREATE TABLE assets (
   assigned_to   INTEGER NOT NULL REFERENCES users(id),
   status        VARCHAR(30) NOT NULL DEFAULT 'active'
                 CHECK (status IN ('active','under_repair','retired')),
+  -- System specification columns (populated from Excel import or manual entry)
+  machine_type  VARCHAR(50),
+  model         VARCHAR(120),
+  ram           VARCHAR(20),
+  hdd           VARCHAR(20),
+  monitor_serial VARCHAR(80),
+  monitor_make  VARCHAR(80),
+  system_ip     VARCHAR(45),
+  port          VARCHAR(20),
+  ms_office_ver VARCHAR(30),
+  os            VARCHAR(60),
+  host_id       VARCHAR(60),
+  floor         VARCHAR(20),
+  branch        VARCHAR(60),
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   updated_at    TIMESTAMPTZ DEFAULT NOW()
 );

@@ -3,6 +3,16 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import path from 'path'
+import authRoutes from './routes/authRoutes'
+import categoryRoutes from './routes/categoryRoutes'
+import assetRoutes from './routes/assetRoutes'
+import ticketRoutes from './routes/ticketRoutes'
+import dataPortalRoutes from './routes/dataPortalRoutes'
+import approvalRoutes from './routes/approvalRoutes'
+import userRoutes from './routes/userRoutes'
+import reportRoutes from './routes/reportRoutes'
+import lookupRoutes from './routes/lookupRoutes'
+import importRoutes from './routes/importRoutes'
 
 const app = express()
 
@@ -13,18 +23,29 @@ app.use(express.urlencoded({ extended: true }))
 app.use(morgan('dev'))
 
 // Routes
-app.use('/api/auth',       require('./routes/authRoutes'))
-app.use('/api/categories', require('./routes/categoryRoutes'))
-app.use('/api/assets',     require('./routes/assetRoutes'))
-app.use('/api/tickets',    require('./routes/ticketRoutes'))
-app.use('/api/data-portal', require('./routes/dataPortalRoutes'))
-app.use('/api/approvals',  require('./routes/approvalRoutes'))
-app.use('/api/users',      require('./routes/userRoutes'))
-app.use('/api/reports',    require('./routes/reportRoutes'))
-app.use('/api/lookup',     require('./routes/lookupRoutes'))
+app.use('/api/auth',        authRoutes)
+app.use('/api/categories',  categoryRoutes)
+app.use('/api/assets',      assetRoutes)
+app.use('/api/tickets',     ticketRoutes)
+app.use('/api/data-portal', dataPortalRoutes)
+app.use('/api/approvals',   approvalRoutes)
+app.use('/api/users',       userRoutes)
+app.use('/api/reports',     reportRoutes)
+app.use('/api/lookup',      lookupRoutes)
+app.use('/api/import',      importRoutes)
 
 // Serve uploads folder in dev
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
+
+// Health check endpoint
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({ 
+    success: true, 
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  })
+})
 
 // 404
 app.use((_req: Request, res: Response) =>

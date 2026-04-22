@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
 import * as categoryModel from '../models/categoryModel'
 import * as userModel from '../models/userModel'
+import * as accessControl from '../services/accessControlService'
 import ROLES from '../constants/ROLES'
 
 const PROTECTED_TEAM_KEYS = new Set([
@@ -56,32 +57,23 @@ async function getEmployeesByCategory(req: Request, res: Response): Promise<void
       res.status(404).json({ success: false, message: 'Category not found.' }); return
     }
 
-    const teamId = category?.is_team
+    // Use centralized access control service
+    const canView = await accessControl.canViewCategoryEmployees(
+      req.user.id,
+      req.user.role,
+      categoryId
+    )
+
+    if (!canView) {
+      res.status(403).json({ success: false, message: 'Access denied for this category.' }); return
+    }
+
+    // Determine the effective team ID (for team mapping)
+    const teamId = category.is_team
       ? category.id
-      : category?.assigned_team_key
+      : category.assigned_team_key
         ? (await categoryModel.findByKey(category.assigned_team_key))?.id
         : categoryId
-
-    if (req.user.role === ROLES.MANAGER) {
-      const managedCategories = await categoryModel.findByManagerId(req.user.id)
-      const managedCategoryIds = new Set(managedCategories.map(c => Number(c.id)))
-      const requestedCategoryId = Number(categoryId)
-      const effectiveCategoryId = Number(teamId ?? categoryId)
-      const hasExplicitCategoryOwner = Number(category.manager_user_id ?? 0) > 0
-
-      const canViewRequestedCategory = managedCategoryIds.has(requestedCategoryId)
-      const canViewMappedTeam = managedCategoryIds.has(effectiveCategoryId)
-
-      // If a category has an explicit manager owner, enforce that owner boundary.
-      // Team mapping is only a fallback for legacy/unowned categories.
-      const canView = hasExplicitCategoryOwner
-        ? canViewRequestedCategory
-        : (canViewRequestedCategory || canViewMappedTeam)
-
-      if (!canView) {
-        res.status(403).json({ success: false, message: 'Access denied for this category.' }); return
-      }
-    }
 
     const employees = await userModel.findEmployeesByCategory(teamId ?? categoryId)
     res.status(200).json({ success: true, employees })

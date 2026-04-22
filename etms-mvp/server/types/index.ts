@@ -89,6 +89,20 @@ export interface AssetRow {
   category_id: number
   assigned_to: number
   status: 'active' | 'under_repair' | 'retired'
+  // System specification columns
+  machine_type?: string | null
+  model?: string | null
+  ram?: string | null
+  hdd?: string | null
+  monitor_serial?: string | null
+  monitor_make?: string | null
+  system_ip?: string | null
+  port?: string | null
+  ms_office_ver?: string | null
+  os?: string | null
+  host_id?: string | null
+  floor?: string | null
+  branch?: string | null
   created_at?: string
   updated_at?: string
   // Joined fields

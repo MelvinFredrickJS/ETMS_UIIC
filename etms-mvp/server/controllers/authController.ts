@@ -1,14 +1,8 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import * as userModel from '../models/userModel'
-import * as categoryModel from '../models/categoryModel'
+import * as accessControl from '../services/accessControlService'
 import { generateToken } from '../utils/jwtUtils'
-
-async function resolveCanManageAssets(userId: number, role: string): Promise<boolean> {
-  if (role !== 'manager') return false
-  const managedCategories = await categoryModel.findByManagerId(userId)
-  return managedCategories.some(category => category.category_key === 'infra_team')
-}
 
 async function login(req: Request, res: Response): Promise<void> {
   try {
@@ -31,7 +25,8 @@ async function login(req: Request, res: Response): Promise<void> {
     if (!match) { res.status(401).json({ success: false, message: 'Invalid credentials.' }); return }
 
     const token = generateToken(user)
-    const can_manage_assets = await resolveCanManageAssets(user.id, user.role)
+    // Use centralized access control service
+    const can_manage_assets = await accessControl.canManageAssets(user.id, user.role)
 
     res.status(200).json({
       success: true,
@@ -57,7 +52,8 @@ async function me(req: Request, res: Response): Promise<void> {
   try {
     const user = await userModel.findByIdWithPassword(req.user.id)
     if (!user) { res.status(401).json({ success: false, message: 'User not found.' }); return }
-    const can_manage_assets = await resolveCanManageAssets(user.id, user.role)
+    // Use centralized access control service
+    const can_manage_assets = await accessControl.canManageAssets(user.id, user.role)
     res.status(200).json({
       success: true,
       user: {

@@ -2,8 +2,9 @@ import type { Request, Response } from 'express'
 import * as assetModel from '../models/assetModel'
 import * as categoryModel from '../models/categoryModel'
 import * as userModel from '../models/userModel'
+import * as accessControl from '../services/accessControlService'
 import ROLES from '../constants/ROLES'
-import type { Role } from '../types'
+import type { Role, AssetRow } from '../types'
 
 async function isInfraTeamMember(userId: number): Promise<boolean> {
   const user = await userModel.findById(userId)
@@ -18,19 +19,15 @@ async function getInfraTeamCategoryId(): Promise<number | null> {
   return infraTeam?.id ?? null
 }
 
-async function isInfraManager(userId: number): Promise<boolean> {
-  const managed = await categoryModel.findByManagerId(userId)
-  return managed.some(c => c.category_key === 'infra_team')
-}
-
 async function getAllAssets(req: Request, res: Response): Promise<void> {
   try {
     const role = req.user.role as Role
     let category_ids: number[] | undefined
 
     if (role === ROLES.MANAGER) {
-      const infraManager = await isInfraManager(req.user.id)
-      if (!infraManager) {
+      // Use centralized access control
+      const canManage = await accessControl.canManageAssets(req.user.id, role)
+      if (!canManage) {
         res.status(403).json({ success: false, message: 'Only Infra Manager can manage assets.' }); return
       }
       category_ids = undefined
@@ -63,8 +60,8 @@ async function getAssetHistory(req: Request, res: Response): Promise<void> {
     // Access check — admin sees all, manager sees their category, infra team employees see infra assets.
     const role = req.user.role as Role
     if (role === ROLES.MANAGER) {
-      const infraManager = await isInfraManager(req.user.id)
-      if (!infraManager) {
+      const canManage = await accessControl.canManageAssets(req.user.id, role)
+      if (!canManage) {
         res.status(403).json({ success: false, message: 'Access denied.' }); return
       }
     } else if (role === ROLES.EMPLOYEE) {
@@ -112,8 +109,8 @@ async function getAssetById(req: Request, res: Response): Promise<void> {
     }
 
     if (role === ROLES.MANAGER) {
-      const infraManager = await isInfraManager(userId)
-      if (infraManager) {
+      const canManage = await accessControl.canManageAssets(userId, role)
+      if (canManage) {
         res.status(200).json({ success: true, asset }); return
       }
       res.status(403).json({ success: false, message: 'Access denied.' }); return
@@ -128,9 +125,17 @@ async function getAssetById(req: Request, res: Response): Promise<void> {
 
 async function createAsset(req: Request, res: Response): Promise<void> {
   try {
-    const { name, serial_number, category_id, assigned_to, status } = req.body as {
-      name?: string; serial_number?: string; category_id?: string; assigned_to?: string; status?: string
+    // Admin OR Infra Manager can create assets
+    if (req.user.role === ROLES.MANAGER) {
+      const canManage = await accessControl.canManageAssets(req.user.id, req.user.role)
+      if (!canManage) { res.status(403).json({ success: false, message: 'Only Infra Manager can create assets.' }); return }
     }
+
+    const {
+      name, serial_number, category_id, assigned_to, status,
+      machine_type, model, ram, hdd, monitor_serial, monitor_make,
+      system_ip, port, ms_office_ver, os, host_id, floor, branch,
+    } = req.body as Record<string, string | undefined>
 
     if (!name || !serial_number || !category_id || !assigned_to) {
       res.status(400).json({ success: false, message: 'name, serial_number, category_id, and assigned_to are required.' }); return
@@ -152,6 +157,19 @@ async function createAsset(req: Request, res: Response): Promise<void> {
       category_id: Number(category_id),
       assigned_to: Number(assigned_to),
       status: status ?? 'active',
+      machine_type: machine_type ?? null,
+      model: model ?? null,
+      ram: ram ?? null,
+      hdd: hdd ?? null,
+      monitor_serial: monitor_serial ?? null,
+      monitor_make: monitor_make ?? null,
+      system_ip: system_ip ?? null,
+      port: port ?? null,
+      ms_office_ver: ms_office_ver ?? null,
+      os: os ?? null,
+      host_id: host_id ?? null,
+      floor: floor ?? null,
+      branch: branch ?? null,
     })
 
     res.status(201).json({ success: true, asset })
@@ -160,6 +178,57 @@ async function createAsset(req: Request, res: Response): Promise<void> {
       res.status(409).json({ success: false, message: 'Serial number already in use.' }); return
     }
     console.error('createAsset error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+async function deleteAsset(req: Request, res: Response): Promise<void> {
+  try {
+    // Admin OR Infra Manager can delete assets
+    if (req.user.role === ROLES.MANAGER) {
+      const canManage = await accessControl.canManageAssets(req.user.id, req.user.role)
+      if (!canManage) { res.status(403).json({ success: false, message: 'Only Infra Manager can delete assets.' }); return }
+    }
+
+    const id = Number(req.params.id)
+    if (!id) { res.status(400).json({ success: false, message: 'Invalid asset ID.' }); return }
+
+    const asset = await assetModel.findById(id)
+    if (!asset) { res.status(404).json({ success: false, message: 'Asset not found.' }); return }
+
+    const deleted = await assetModel.deleteById(id)
+    res.status(200).json({ success: true, message: 'Asset deleted.', asset: deleted })
+  } catch (err) {
+    console.error('deleteAsset error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+async function updateAssetSpec(req: Request, res: Response): Promise<void> {
+  try {
+    // Admin OR Infra Manager can update spec fields
+    if (req.user.role === ROLES.MANAGER) {
+      const canManage = await accessControl.canManageAssets(req.user.id, req.user.role)
+      if (!canManage) { res.status(403).json({ success: false, message: 'Only Infra Manager can update asset specs.' }); return }
+    }
+
+    const id = Number(req.params.id)
+    const asset = await assetModel.findById(id)
+    if (!asset) { res.status(404).json({ success: false, message: 'Asset not found.' }); return }
+
+    const {
+      machine_type, model, ram, hdd, monitor_serial, monitor_make,
+      system_ip, port, ms_office_ver, os, host_id, floor, branch,
+    } = req.body as Partial<AssetRow>
+
+    const updated = await assetModel.updateSpec(id, {
+      machine_type, model, ram, hdd, monitor_serial, monitor_make,
+      system_ip, port, ms_office_ver, os, host_id, floor, branch,
+    })
+
+    res.status(200).json({ success: true, asset: updated })
+  } catch (err) {
+    console.error('updateAssetSpec error:', err)
     res.status(500).json({ success: false, message: 'Internal server error.' })
   }
 }
@@ -178,8 +247,8 @@ async function updateAssetStatus(req: Request, res: Response): Promise<void> {
     if (!asset) { res.status(404).json({ success: false, message: 'Asset not found.' }); return }
 
     if (req.user.role === ROLES.MANAGER) {
-      const infraManager = await isInfraManager(req.user.id)
-      if (!infraManager) {
+      const canManage = await accessControl.canManageAssets(req.user.id, req.user.role)
+      if (!canManage) {
         res.status(403).json({ success: false, message: 'Only Infra Manager can update asset status.' }); return
       }
     }
@@ -228,9 +297,20 @@ async function transferAsset(req: Request, res: Response): Promise<void> {
       res.status(400).json({ success: false, message: 'Target user must be an active employee.' }); return
     }
 
+    // Validate that target user's category matches asset category (for infra assets)
+    const infraCategoryId = await getInfraTeamCategoryId()
+    if (infraCategoryId && asset.category_id === infraCategoryId) {
+      if (!targetUser.category_id || targetUser.category_id !== infraCategoryId) {
+        res.status(400).json({ 
+          success: false, 
+          message: 'Infrastructure assets can only be transferred to employees in the Infrastructure team.' 
+        }); return
+      }
+    }
+
     if (req.user.role === ROLES.MANAGER) {
-      const infraManager = await isInfraManager(req.user.id)
-      if (!infraManager) {
+      const canManage = await accessControl.canManageAssets(req.user.id, req.user.role)
+      if (!canManage) {
         res.status(403).json({ success: false, message: 'Only Infra Manager can transfer assets.' }); return
       }
     }
@@ -261,4 +341,4 @@ async function transferAsset(req: Request, res: Response): Promise<void> {
   }
 }
 
-export { getAllAssets, getAssetHistory, getMyAssets, getAssetById, createAsset, updateAssetStatus, transferAsset }
+export { getAllAssets, getAssetHistory, getMyAssets, getAssetById, createAsset, deleteAsset, updateAssetSpec, updateAssetStatus, transferAsset }

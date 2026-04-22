@@ -4,12 +4,14 @@ import type { Request, Response } from 'express'
 import ROLES from '../constants/ROLES'
 import { validateTransition, getAllowedNextStatuses } from '../utils/ticketTransitions'
 import { buildSafeFilename } from '../utils/sanitizeFilename'
+import { cleanupUploadedFile, safeDeleteFile } from '../utils/fileCleanup'
 import generateTicketId from '../utils/generateTicketId'
 import * as ticketModel from '../models/ticketModel'
 import * as categoryModel from '../models/categoryModel'
 import * as assetModel from '../models/assetModel'
 import * as userModel from '../models/userModel'
 import * as emailService from '../services/emailService'
+import * as accessControl from '../services/accessControlService'
 import { getNextEmployeeInCategory } from '../services/assignmentService'
 import { getApprovalManagerForCategory } from '../services/managerAssignmentService'
 import type { TicketRow, TicketStatus, Role } from '../types'
@@ -28,23 +30,23 @@ async function createTicket(req: Request, res: Response): Promise<void> {
     const PRIORITY_VALUES = ['low', 'medium', 'high', 'critical']
 
     if (!title || !description || !ticket_type_id || !category_id || !priority) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'All fields are required.' }); return
     }
     if (String(title).trim().length < 5 || String(title).trim().length > 200) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'title must be between 5 and 200 characters.' }); return
     }
     if (String(description).trim().length < 20) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'description must be at least 20 characters.' }); return
     }
     if (!PRIORITY_VALUES.includes(String(priority))) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'priority must be one of: low, medium, high, critical.' }); return
     }
     if (!Number.isFinite(slaDays) || slaDays < 1 || slaDays > 30) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'sla_days must be between 1 and 30.' }); return
     }
 
@@ -52,11 +54,11 @@ async function createTicket(req: Request, res: Response): Promise<void> {
 
     const category = await categoryModel.findById(Number(category_id))
     if (!category) {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'category validation')
       res.status(400).json({ success: false, message: 'Category not found.' }); return
     }
     if (Number(category.ticket_type_id) !== Number(ticket_type_id)) {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'category validation')
       res.status(400).json({ success: false, message: 'Category does not belong to the selected ticket type.' }); return
     }
 
@@ -64,30 +66,30 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       ? await categoryModel.findByKey(category.assigned_team_key)
       : null
     if (!targetTeam) {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'team validation')
       res.status(400).json({ success: false, message: 'Ticket category is not mapped to a team.' }); return
     }
 
     if (category.category_key === 'hardware_complaint') {
       if (!asset_id) {
-        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+        safeDeleteFile(tmpFilePath, 'asset validation')
         res.status(400).json({ success: false, message: 'asset_id is required for hardware complaint tickets.' }); return
       }
       const asset = await assetModel.findById(Number(asset_id))
       if (!asset) {
-        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+        safeDeleteFile(tmpFilePath, 'asset validation')
         res.status(400).json({ success: false, message: 'Asset not found.' }); return
       }
       if (Number(asset.assigned_to) !== Number(req.user.id)) {
-        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+        safeDeleteFile(tmpFilePath, 'asset validation')
         res.status(403).json({ success: false, message: 'Asset is not assigned to you.' }); return
       }
       if (Number(asset.category_id) !== Number(targetTeam.id)) {
-        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+        safeDeleteFile(tmpFilePath, 'asset validation')
         res.status(400).json({ success: false, message: 'Asset does not belong to the mapped infra team.' }); return
       }
       if (asset.status !== 'active') {
-        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+        safeDeleteFile(tmpFilePath, 'asset validation')
         res.status(400).json({ success: false, message: 'Asset must be active to raise a ticket.' }); return
       }
     } else {
@@ -105,7 +107,7 @@ async function createTicket(req: Request, res: Response): Promise<void> {
         approvalOwnerId      = approvalManager.id
         approvalManagerEmail = approvalManager.email
       } catch {
-        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+        safeDeleteFile(tmpFilePath, 'manager assignment')
         res.status(400).json({ success: false, message: 'No active managers available for approval.' }); return
       }
     }
@@ -132,7 +134,7 @@ async function createTicket(req: Request, res: Response): Promise<void> {
         const isCollision = pgErr.code === '23505' && String(pgErr.constraint ?? pgErr.detail ?? '').includes('ticket_no')
         if (isCollision && attempt < MAX_TICKET_ID_RETRIES) continue
         if (isCollision) {
-          if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+          safeDeleteFile(tmpFilePath, 'ticket ID collision')
           res.status(409).json({ success: false, message: 'Could not allocate unique ticket number. Please retry.', code: 'TICKET_NO_CONFLICT' }); return
         }
         throw err
@@ -140,7 +142,7 @@ async function createTicket(req: Request, res: Response): Promise<void> {
     }
 
     if (!newTicket) {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'ticket creation failure')
       res.status(500).json({ success: false, message: 'Failed to create ticket.' }); return
     }
 
@@ -161,8 +163,8 @@ async function createTicket(req: Request, res: Response): Promise<void> {
           uploaded_by:   req.user.id,
         })
       } catch (fileErr) {
-        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
-        else             fs.unlink(finalPath, () => {})
+        if (tmpFilePath) safeDeleteFile(tmpFilePath, 'file rename error')
+        else safeDeleteFile(finalPath, 'file save error')
         console.error('File handling error:', fileErr)
       }
     }
@@ -203,7 +205,7 @@ async function createTicket(req: Request, res: Response): Promise<void> {
 
     res.status(201).json({ success: true, ticket: await ticketModel.findById(newTicket.id) })
   } catch (err) {
-    if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+    safeDeleteFile(tmpFilePath, 'unexpected error')
     console.error('createTicket error:', err)
     res.status(500).json({ success: false, message: 'Internal server error.' })
   }
@@ -281,7 +283,8 @@ async function getTicketById(req: Request, res: Response): Promise<void> {
     const ticket = await ticketModel.findById(id)
     if (!ticket) { res.status(404).json({ success: false, message: 'Ticket not found.' }); return }
 
-    const allowed = await canAccessTicket(req.user, ticket)
+    // Use centralized access control
+    const allowed = await accessControl.canAccessTicket(req.user.id, req.user.role, ticket)
     if (!allowed) { res.status(403).json({ success: false, message: 'You do not have permission to view this ticket.' }); return }
 
     const [attachments, logs] = await Promise.all([
@@ -306,7 +309,8 @@ async function getAllowedStatuses(req: Request, res: Response): Promise<void> {
     const ticket = await ticketModel.findById(id)
     if (!ticket) { res.status(404).json({ success: false, message: 'Ticket not found.' }); return }
 
-    const allowed = await canAccessTicket(req.user, ticket)
+    // Use centralized access control
+    const allowed = await accessControl.canAccessTicket(req.user.id, req.user.role, ticket)
     if (!allowed) { res.status(403).json({ success: false, message: 'You do not have permission to view this ticket.' }); return }
 
     let allowedStatuses = getAllowedNextStatuses(ticket.status, req.user.role as Role)
@@ -489,7 +493,8 @@ async function downloadTicketFile(req: Request, res: Response): Promise<void> {
     const ticket = await ticketModel.findById(id)
     if (!ticket) { res.status(404).json({ success: false, message: 'Ticket not found.' }); return }
 
-    const allowed = await canAccessTicket(req.user, ticket)
+    // Use centralized access control
+    const allowed = await accessControl.canAccessTicket(req.user.id, req.user.role, ticket)
     if (!allowed) { res.status(403).json({ success: false, message: 'You do not have permission to access this file.' }); return }
 
     const attachments = await ticketModel.getAttachments(id)
@@ -519,25 +524,25 @@ async function uploadDataResponseFile(req: Request, res: Response): Promise<void
     const id = Number(req.params.id)
     const ticket = await ticketModel.findById(id)
     if (!ticket) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'ticket not found')
       res.status(404).json({ success: false, message: 'Ticket not found.' })
       return
     }
 
     if (ticket.type_key !== 'data') {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'invalid ticket type')
       res.status(400).json({ success: false, message: 'Response upload is only allowed for data tickets.' })
       return
     }
 
     if (Number(ticket.assigned_to) !== Number(req.user.id)) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'unauthorized access')
       res.status(403).json({ success: false, message: 'Only the assigned employee can upload response data.' })
       return
     }
 
     if (!['assigned', 'in_progress'].includes(ticket.status)) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'invalid ticket status')
       res.status(400).json({ success: false, message: 'Response file can only be uploaded while ticket is assigned or in progress.' })
       return
     }
@@ -550,9 +555,6 @@ async function uploadDataResponseFile(req: Request, res: Response): Promise<void
 
     const finalName = buildSafeFilename(`response-${ticket.id}`, req.file.originalname)
     const responseUploadDir = process.env.RESPONSE_UPLOAD_DIR || path.join(process.env.UPLOAD_DIR || './uploads', 'responses')
-    if (!fs.existsSync(responseUploadDir)) {
-      fs.mkdirSync(responseUploadDir, { recursive: true })
-    }
     const finalPath = path.join(responseUploadDir, finalName)
 
     try {
@@ -569,8 +571,8 @@ async function uploadDataResponseFile(req: Request, res: Response): Promise<void
         uploaded_by: req.user.id,
       })
     } catch (fileErr) {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
-      else fs.unlink(finalPath, () => {})
+      if (tmpFilePath) safeDeleteFile(tmpFilePath, 'file rename error')
+      else safeDeleteFile(finalPath, 'file save error')
       console.error('uploadDataResponseFile file error:', fileErr)
       res.status(500).json({ success: false, message: 'Failed to store response file.' })
       return
@@ -587,7 +589,7 @@ async function uploadDataResponseFile(req: Request, res: Response): Promise<void
 
     res.status(200).json({ success: true, message: 'Response file uploaded successfully.' })
   } catch (err) {
-    if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+    safeDeleteFile(tmpFilePath, 'unexpected error')
     console.error('uploadDataResponseFile error:', err)
     res.status(500).json({ success: false, message: 'Internal server error.' })
   }
@@ -607,7 +609,8 @@ async function downloadTicketResponseFile(req: Request, res: Response): Promise<
       return
     }
 
-    const allowed = await canAccessTicket(req.user, ticket)
+    // Use centralized access control
+    const allowed = await accessControl.canAccessTicket(req.user.id, req.user.role, ticket)
     if (!allowed) {
       res.status(403).json({ success: false, message: 'You do not have permission to access this file.' })
       return
@@ -625,15 +628,6 @@ async function downloadTicketResponseFile(req: Request, res: Response): Promise<
     console.error('downloadTicketResponseFile error:', err)
     res.status(500).json({ success: false, message: 'Internal server error.' })
   }
-}
-
-async function canAccessTicket(user: Request['user'], ticket: TicketRow): Promise<boolean> {
-  if (user.role === ROLES.ADMIN)                          return true
-  if (Number(ticket.raised_by)   === Number(user.id))    return true
-  if (Number(ticket.assigned_to) === Number(user.id))    return true
-  if (user.role === ROLES.DATA_TEAM)                     return false
-  if (user.role === ROLES.MANAGER)                       return Number(ticket.approval_owner_id) === Number(user.id)
-  return false
 }
 
 export {

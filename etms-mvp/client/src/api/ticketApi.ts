@@ -223,11 +223,25 @@ export const lookupEmployee = (q: string) =>
 export const getAssetHistory = (assetId: number) =>
   api.get<{ success: boolean; history: AssignmentHistory[] }>(`/assets/${assetId}/history`)
 
-export const createAsset = (data: {
-  name: string; serial_number: string
-  category_id: number; assigned_to: number; status?: string
-}) =>
+export const createAsset = (data: Partial<Asset> & { name: string; serial_number: string; category_id: number; assigned_to: number; status?: string }) =>
   api.post<{ success: boolean; asset: Asset }>('/assets', data)
+
+export const deleteAsset = (assetId: number) =>
+  api.delete<{ success: boolean; message: string }>(`/assets/${assetId}`)
+
+export const updateAssetSpec = (assetId: number, spec: Partial<Pick<Asset,
+  'machine_type' | 'model' | 'ram' | 'hdd' | 'monitor_serial' | 'monitor_make' |
+  'system_ip' | 'port' | 'ms_office_ver' | 'os' | 'host_id' | 'floor' | 'branch'
+>>) =>
+  api.patch<{ success: boolean; asset: Asset }>(`/assets/${assetId}/spec`, spec)
+
+export const importAssetsExcel = (file: File) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post<{ success: boolean; message: string; imported: number; skipped: number; errors: string[] }>(
+    '/import/assets/excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+}
 
 export const updateAssetStatus = (assetId: number, status: string) =>
   api.patch<{ success: boolean; asset: Asset }>(`/assets/${assetId}/status`, { status })

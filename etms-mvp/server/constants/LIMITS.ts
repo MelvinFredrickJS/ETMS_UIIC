@@ -1,0 +1,51 @@
+// Application-wide limits and constraints
+
+export const TICKET_LIMITS = {
+  TITLE_MIN_LENGTH: 5,
+  TITLE_MAX_LENGTH: 200,
+  DESCRIPTION_MIN_LENGTH: 20,
+  SLA_DAYS_MIN: 1,
+  SLA_DAYS_MAX: 30,
+  SLA_DAYS_DEFAULT: 3,
+  MAX_ID_RETRIES: 3,
+} as const
+
+export const PAGINATION_LIMITS = {
+  DEFAULT_PAGE: 1,
+  DEFAULT_LIMIT: 15,
+  MAX_LIMIT: 100,
+  MIN_LIMIT: 1,
+} as const
+
+export const PASSWORD_REQUIREMENTS = {
+  MIN_LENGTH: 8,
+  REQUIRE_UPPERCASE: true,
+  REQUIRE_LOWERCASE: true,
+  REQUIRE_NUMBER: true,
+  REQUIRE_SPECIAL_CHAR: true,
+} as const
+
+export const FILE_LIMITS = {
+  MAX_SIZE: 5 * 1024 * 1024, // 5MB
+  MAX_EXCEL_SIZE: 10 * 1024 * 1024, // 10MB
+} as const
+
+export const REPORT_LIMITS = {
+  TOP_DEVICES_MIN: 1,
+  TOP_DEVICES_MAX: 50,
+  TOP_DEVICES_DEFAULT: 10,
+} as const
+
+export const USER_LIMITS = {
+  NAME_MAX_LENGTH: 100,
+  NOTE_MAX_LENGTH: 500,
+} as const
+
+export default {
+  TICKET_LIMITS,
+  PAGINATION_LIMITS,
+  PASSWORD_REQUIREMENTS,
+  FILE_LIMITS,
+  REPORT_LIMITS,
+  USER_LIMITS,
+}

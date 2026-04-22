@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import type { Request, Response } from 'express'
 import ROLES from '../constants/ROLES'
+import { cleanupUploadedFile, safeDeleteFile } from '../utils/fileCleanup'
 import * as ticketModel from '../models/ticketModel'
 import * as categoryModel from '../models/categoryModel'
 import * as userModel from '../models/userModel'
@@ -32,23 +33,23 @@ async function createTicket(req: Request, res: Response): Promise<void> {
     const PRIORITY_VALUES = ['low', 'medium', 'high', 'critical']
 
     if (!title || !description || !ticket_type_id || !category_id || !priority) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'All fields are required.' }); return
     }
     if (String(title).trim().length < 5 || String(title).trim().length > 200) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'title must be between 5 and 200 characters.' }); return
     }
     if (String(description).trim().length < 20) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'description must be at least 20 characters.' }); return
     }
     if (!PRIORITY_VALUES.includes(String(priority))) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'priority must be one of: low, medium, high, critical.' }); return
     }
     if (!Number.isFinite(slaDays) || slaDays < 1 || slaDays > 30) {
-      if (req.file) fs.unlink(req.file.path, () => {})
+      cleanupUploadedFile(req, 'validation error')
       res.status(400).json({ success: false, message: 'sla_days must be between 1 and 30.' }); return
     }
 
@@ -56,26 +57,26 @@ async function createTicket(req: Request, res: Response): Promise<void> {
 
     const category = await categoryModel.findById(Number(category_id))
     if (!category) {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'category validation')
       res.status(400).json({ success: false, message: 'Category not found.' }); return
     }
     if (Number(category.ticket_type_id) !== Number(ticket_type_id)) {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'category validation')
       res.status(400).json({ success: false, message: 'Category does not belong to the selected ticket type.' }); return
     }
     if (category.type_key !== 'data') {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'category validation')
       res.status(400).json({ success: false, message: 'Data portal can only raise data tickets.' }); return
     }
 
     const targetTeam = await categoryModel.findByKey('data_team')
 
     if (!targetTeam || !targetTeam.is_team) {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'team validation')
       res.status(400).json({ success: false, message: 'Data Team is not configured for routing.' }); return
     }
     if (category.assigned_team_key !== 'data_team') {
-      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      safeDeleteFile(tmpFilePath, 'team validation')
       res.status(400).json({ success: false, message: 'Selected data category is not mapped to Data Team.' }); return
     }
 
@@ -119,8 +120,8 @@ async function createTicket(req: Request, res: Response): Promise<void> {
           uploaded_by: req.user.id,
         })
       } catch (fileErr) {
-        if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
-        else fs.unlink(finalPath, () => {})
+        if (tmpFilePath) safeDeleteFile(tmpFilePath, 'file rename error')
+        else safeDeleteFile(finalPath, 'file save error')
         console.error('Data portal file handling error:', fileErr)
       }
     }
@@ -165,7 +166,7 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       },
     })
   } catch (err) {
-    if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+    safeDeleteFile(tmpFilePath, 'unexpected error')
     console.error('dataPortal createTicket error:', err)
     res.status(500).json({ success: false, message: 'Internal server error.' })
   }

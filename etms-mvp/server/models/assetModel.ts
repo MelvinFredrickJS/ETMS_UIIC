@@ -44,17 +44,64 @@ interface CreateAssetInput {
   category_id: number
   assigned_to: number
   status?: string
+  machine_type?: string | null
+  model?: string | null
+  ram?: string | null
+  hdd?: string | null
+  monitor_serial?: string | null
+  monitor_make?: string | null
+  system_ip?: string | null
+  port?: string | null
+  ms_office_ver?: string | null
+  os?: string | null
+  host_id?: string | null
+  floor?: string | null
+  branch?: string | null
 }
 
 async function create(input: CreateAssetInput): Promise<AssetRow> {
-  const { name, serial_number, category_id, assigned_to, status = 'active' } = input
+  const {
+    name, serial_number, category_id, assigned_to, status = 'active',
+    machine_type, model, ram, hdd, monitor_serial, monitor_make,
+    system_ip, port, ms_office_ver, os, host_id, floor, branch,
+  } = input
   const { rows } = await pool.query<AssetRow>(
-    `INSERT INTO assets (name, serial_number, category_id, assigned_to, status)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO assets
+       (name, serial_number, category_id, assigned_to, status,
+        machine_type, model, ram, hdd, monitor_serial, monitor_make,
+        system_ip, port, ms_office_ver, os, host_id, floor, branch)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      RETURNING *`,
-    [name, serial_number, category_id, assigned_to, status]
+    [name, serial_number, category_id, assigned_to, status,
+     machine_type ?? null, model ?? null, ram ?? null, hdd ?? null,
+     monitor_serial ?? null, monitor_make ?? null, system_ip ?? null,
+     port ?? null, ms_office_ver ?? null, os ?? null, host_id ?? null,
+     floor ?? null, branch ?? null]
   )
   return rows[0]
+}
+
+async function updateSpec(id: number, spec: Partial<Pick<AssetRow,
+  'machine_type' | 'model' | 'ram' | 'hdd' | 'monitor_serial' | 'monitor_make' |
+  'system_ip' | 'port' | 'ms_office_ver' | 'os' | 'host_id' | 'floor' | 'branch'
+>>): Promise<AssetRow | null> {
+  const fields = Object.entries(spec).filter(([, v]) => v !== undefined)
+  if (!fields.length) return null
+  const sets = fields.map(([k], i) => `${k} = $${i + 2}`).join(', ')
+  const values = fields.map(([, v]) => v)
+  const { rows } = await pool.query<AssetRow>(
+    `UPDATE assets SET ${sets}, updated_at = NOW() WHERE id = $1 RETURNING *`,
+    [id, ...values]
+  )
+  return rows[0] ?? null
+}
+
+async function deleteById(id: number): Promise<AssetRow | null> {
+  const { rows } = await pool.query<AssetRow>(
+    'DELETE FROM assets WHERE id = $1 RETURNING *',
+    [id]
+  )
+  return rows[0] ?? null
 }
 
 async function updateStatus(id: number, status: string): Promise<AssetRow | null> {
@@ -194,4 +241,4 @@ async function findUnassignedRoundRobin(category_id: number): Promise<AssetRow |
 }
 
 export { findById, findBySerial, findByAssignedUser, findAll, getHistory,
-         findUnassignedRoundRobin, create, updateStatus, transferOwnership }
+         findUnassignedRoundRobin, create, updateSpec, deleteById, updateStatus, transferOwnership }

@@ -95,7 +95,22 @@ export interface Asset {
   category_id: number
   category_name: string
   assigned_to: number
+  assigned_user_name?: string
   status: 'active' | 'under_repair' | 'retired'
+  // System specification fields
+  machine_type?: string | null
+  model?: string | null
+  ram?: string | null
+  hdd?: string | null
+  monitor_serial?: string | null
+  monitor_make?: string | null
+  system_ip?: string | null
+  port?: string | null
+  ms_office_ver?: string | null
+  os?: string | null
+  host_id?: string | null
+  floor?: string | null
+  branch?: string | null
 }
 
 // ── Ticket Log ───────────────────────────────────────────────────────────────

@@ -6,8 +6,10 @@ import { ROLES } from '../constants/ROLES'
 import {
   getMyAssets, getAllAssets, getAssetHistory,
   updateAssetStatus, transferAsset, getEmployeesByCategory,
+  deleteAsset, importAssetsExcel,
   type AssignmentHistory,
 } from '../api/ticketApi'
+import AssetDetailModal from '../components/assets/AssetDetailModal'
 import type { Asset, User } from '../types'
 
 const STATUS_BADGE: Record<string, string> = {
@@ -156,6 +158,11 @@ export default function AssetsPage() {
   const [toast,       setToast]       = useState('')
   const [historyAsset, setHistoryAsset] = useState<Asset | null>(null)
   const [transferAssetTarget, setTransferAssetTarget] = useState<Asset | null>(null)
+  const [detailAsset,  setDetailAsset]  = useState<Asset | null>(null)
+  // Excel import
+  const [importFile,   setImportFile]   = useState<File | null>(null)
+  const [importing,    setImporting]    = useState(false)
+  const [importResult, setImportResult] = useState<{ message: string; imported: number; skipped: number; errors: string[] } | null>(null)
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
@@ -194,6 +201,35 @@ export default function AssetsPage() {
     }
   }
 
+  async function handleDelete(asset: Asset) {
+    if (!confirm(`Delete "${asset.name}" (${asset.serial_number})? This cannot be undone.`)) return
+    try {
+      await deleteAsset(asset.id)
+      showToast('Asset deleted.')
+      load()
+    } catch (err: unknown) {
+      const msg = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message : undefined
+      showToast('❌ ' + (msg ?? 'Delete failed.'))
+    }
+  }
+
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault()
+    if (!importFile) return
+    setImporting(true); setImportResult(null)
+    try {
+      const { data } = await importAssetsExcel(importFile)
+      setImportResult({ message: data.message, imported: data.imported, skipped: data.skipped, errors: data.errors })
+      setImportFile(null)
+      load()
+    } catch (err: unknown) {
+      const msg = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message : undefined
+      setImportResult({ message: msg ?? 'Import failed.', imported: 0, skipped: 0, errors: [] })
+    } finally { setImporting(false) }
+  }
+
   // ── Employee view — read-only cards ──────────────────────────────────────────
   if (!isManager) {
     return (
@@ -214,7 +250,12 @@ export default function AssetsPage() {
               <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-semibold text-gray-800">{a.name}</p>
+                    <button
+                      onClick={() => setDetailAsset(a)}
+                      className="font-semibold text-[#1B3A6B] hover:underline text-left"
+                    >
+                      {a.name}
+                    </button>
                     <p className="text-xs font-mono text-gray-400 mt-0.5">{a.serial_number}</p>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_BADGE[a.status] ?? 'bg-gray-100 text-gray-500'}`}>
@@ -234,6 +275,16 @@ export default function AssetsPage() {
             ))}
           </div>
         )}
+
+        {/* Asset detail modal — employee view */}
+        {detailAsset && (
+          <AssetDetailModal
+            asset={detailAsset}
+            canEdit={false}
+            onClose={() => setDetailAsset(null)}
+            onUpdated={() => {}}
+          />
+        )}
       </div>
     )
   }
@@ -246,6 +297,44 @@ export default function AssetsPage() {
       )}
 
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Manage Assets</h1>
+
+      {/* Excel Import Panel */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-lg">📥</span>
+          <p className="text-sm font-semibold text-blue-800">Import Assets from Excel</p>
+        </div>
+        <p className="text-xs text-blue-600 mb-3">
+          Upload your asset register (.xlsx / .xls). Each row must have an <strong>Emp ID</strong> column.
+          System specs (RAM, HDD, OS, IP, etc.) are imported automatically.
+        </p>
+        <form onSubmit={handleImport} className="flex items-center gap-3 flex-wrap">
+          <input
+            type="file" accept=".xlsx,.xls"
+            onChange={e => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null) }}
+            className="text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1B3A6B] file:text-white hover:file:bg-[#15305a] cursor-pointer"
+          />
+          <button type="submit" disabled={!importFile || importing}
+            className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 hover:bg-[#15305a] flex items-center gap-2">
+            {importing && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            {importing ? 'Importing…' : 'Import'}
+          </button>
+        </form>
+        {importResult && (
+          <div className={`mt-3 rounded-lg p-3 text-xs ${importResult.imported > 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+            <p className={`font-semibold mb-1 ${importResult.imported > 0 ? 'text-green-800' : 'text-red-700'}`}>{importResult.message}</p>
+            <p className="text-gray-600">✅ {importResult.imported} imported · ⚠️ {importResult.skipped} skipped</p>
+            {importResult.errors.length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-gray-500">{importResult.errors.length} warning(s)</summary>
+                <ul className="mt-1 space-y-0.5 text-gray-500 list-disc list-inside">
+                  {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-16">
@@ -267,9 +356,16 @@ export default function AssetsPage() {
               ) : assets.map(a => (
                 <tr key={a.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs text-gray-500">{a.serial_number}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{a.name}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => setDetailAsset(a)}
+                      className="font-medium text-[#1B3A6B] hover:underline text-left"
+                    >
+                      {a.name}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{a.category_name}</td>
-                  <td className="px-4 py-3 text-gray-700">{(a as Asset & { assigned_user_name?: string }).assigned_user_name ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-700">{a.assigned_user_name ?? '—'}</td>
                   <td className="px-4 py-3">
                     <select
                       value={a.status}
@@ -291,6 +387,16 @@ export default function AssetsPage() {
                         className="text-xs text-gray-500 hover:underline font-medium">
                         History
                       </button>
+                      {a.status === 'active' && (
+                        <button onClick={() => reportIssue(a)}
+                          className="text-xs text-red-500 hover:underline font-medium">
+                          Report
+                        </button>
+                      )}
+                      <button onClick={() => handleDelete(a)}
+                        className="text-xs text-red-400 hover:text-red-700 hover:underline font-medium">
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -308,6 +414,18 @@ export default function AssetsPage() {
           asset={transferAssetTarget}
           onClose={() => setTransferAssetTarget(null)}
           onDone={() => { setTransferAssetTarget(null); showToast('Asset transferred.'); load() }}
+        />
+      )}
+      {detailAsset && (
+        <AssetDetailModal
+          asset={detailAsset}
+          canEdit={true}
+          onClose={() => setDetailAsset(null)}
+          onUpdated={updated => {
+            setAssets(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
+            setDetailAsset(updated)
+            showToast('Spec updated.')
+          }}
         />
       )}
     </div>
