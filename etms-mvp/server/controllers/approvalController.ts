@@ -29,7 +29,7 @@ async function approveTicket(req: Request, res: Response): Promise<void> {
     if (ticket.report_reason) {
       res.status(400).json({
         success: false,
-        message: 'Escalated tickets require manager re-approval with explicit assignee.',
+        message: 'Escalated tickets must be handled with re-approve and an explicit assignee.',
       });
       return
     }

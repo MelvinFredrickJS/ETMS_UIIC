@@ -4,6 +4,7 @@ import { ROLES } from '../../constants/ROLES'
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
+  const showManagerAssets = user?.role === ROLES.MANAGER && user?.can_manage_assets === true
 
   const base = 'group flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200'
   const active = 'bg-gradient-to-r from-[#234b87] to-[#1B3A6B] text-white shadow-sm'
@@ -56,7 +57,7 @@ export default function Sidebar() {
             🖥️ My Assets
           </NavLink>
         )}
-        {user?.role === ROLES.MANAGER && (
+        {showManagerAssets && (
           <NavLink to="/assets" className={linkClass}>
             🖥️ Manage Assets
           </NavLink>

@@ -38,6 +38,64 @@ export const getAllowedStatuses = (id: string | number) =>
     `/tickets/${id}/allowed-statuses`
   )
 
+export const downloadTicketFile = async (id: string | number) => {
+  const response = await api.get<Blob>(`/tickets/${id}/file`, { responseType: 'blob' })
+  const disposition = response.headers['content-disposition'] as string | undefined
+
+  let filename = `ticket-${id}-attachment`
+  if (disposition) {
+    const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition)
+    const encodedName = match?.[1]
+    const plainName = match?.[2]
+    if (encodedName) filename = decodeURIComponent(encodedName)
+    else if (plainName) filename = plainName
+  }
+
+  return { blob: response.data, filename }
+}
+
+export const uploadTicketResponseFile = (id: string | number, file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post<{ success: boolean; message: string }>(
+    `/tickets/${id}/response-file`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+}
+
+export const downloadTicketResponseFile = async (id: string | number) => {
+  const response = await api.get<Blob>(`/tickets/${id}/response-file`, { responseType: 'blob' })
+  const disposition = response.headers['content-disposition'] as string | undefined
+
+  let filename = `ticket-${id}-response`
+  if (disposition) {
+    const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition)
+    const encodedName = match?.[1]
+    const plainName = match?.[2]
+    if (encodedName) filename = decodeURIComponent(encodedName)
+    else if (plainName) filename = plainName
+  }
+
+  return { blob: response.data, filename }
+}
+
+export const downloadDataPortalTicketResponseFile = async (id: string | number) => {
+  const response = await api.get<Blob>(`/data-portal/tickets/${id}/response-file`, { responseType: 'blob' })
+  const disposition = response.headers['content-disposition'] as string | undefined
+
+  let filename = `ticket-${id}-response`
+  if (disposition) {
+    const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition)
+    const encodedName = match?.[1]
+    const plainName = match?.[2]
+    if (encodedName) filename = decodeURIComponent(encodedName)
+    else if (plainName) filename = plainName
+  }
+
+  return { blob: response.data, filename }
+}
+
 export const createTicket = (data: FormData) =>
   api.post<{ success: boolean; ticket: Ticket }>(
     '/tickets',

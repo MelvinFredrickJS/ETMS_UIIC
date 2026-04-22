@@ -284,7 +284,7 @@ async function saveAttachment(input: SaveAttachmentInput): Promise<AttachmentRow
 
 async function getAttachments(ticket_id: number): Promise<AttachmentRow[]> {
   const { rows } = await pool.query<AttachmentRow>(
-    'SELECT * FROM attachments WHERE ticket_id = $1',
+    'SELECT * FROM attachments WHERE ticket_id = $1 ORDER BY uploaded_at DESC, id DESC',
     [ticket_id]
   )
   return rows

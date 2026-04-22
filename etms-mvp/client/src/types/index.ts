@@ -25,6 +25,7 @@ export interface User {
   email: string
   role: Role
   team: string | null
+  can_manage_assets?: boolean
   category_id: number | null
   is_active: boolean
   password_changed_at: string | null

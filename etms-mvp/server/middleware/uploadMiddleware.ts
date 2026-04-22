@@ -8,6 +8,7 @@ const ALLOWED_MIMES = [
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
   'image/png',
   'image/jpeg',
 ]
@@ -38,7 +39,7 @@ const fileFilter = (
   if (ALLOWED_MIMES.includes(file.mimetype)) {
     cb(null, true)
   } else {
-    cb(new Error('Invalid file type. Allowed: pdf, doc, docx, png, jpg'))
+    cb(new Error('Invalid file type. Allowed: pdf, doc, docx, txt, png, jpg'))
   }
 }
 

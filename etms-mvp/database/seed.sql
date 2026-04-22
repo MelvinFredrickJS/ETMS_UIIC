@@ -1,5 +1,5 @@
 -- ETMS Seed Data — v2 Architecture
--- 2 managers, 8 team rows, ticket categories mapped through assigned_team_key.
+-- 2 managers, 9 team rows, ticket categories mapped through assigned_team_key.
 -- Data team users log in through /data-portal.
 
 -- ── Ticket Types ──────────────────────────────────────
@@ -9,7 +9,7 @@ INSERT INTO ticket_types (name, type_key) VALUES
   ('Data',      'data');
 
 -- ── Team Rows ─────────────────────────────────────────
--- These rows represent the 8 handling teams. Employees belong to exactly one team.
+-- These rows represent the handling teams. Employees belong to exactly one team.
 INSERT INTO ticket_categories
   (ticket_type_id, name, category_key, default_priority, manager_user_id, assigned_team_key, is_team, requires_approval)
 VALUES
@@ -18,6 +18,7 @@ VALUES
   (NULL, 'Infra Team',         'infra_team',        'medium', NULL, NULL, TRUE,  FALSE),
   (NULL, 'Network Team',       'network_team',      'medium', NULL, NULL, TRUE,  FALSE),
   (NULL, 'Security Team',      'security_team',     'medium', NULL, NULL, TRUE,  FALSE),
+  (NULL, 'Data Team',          'data_team',         'medium', NULL, NULL, TRUE,  FALSE),
   (NULL, 'SAP Team',           'sap_team',          'medium', NULL, NULL, TRUE,  FALSE),
   (NULL, 'GC Master Team',     'gc_master_team',    'medium', NULL, NULL, TRUE,  FALSE),
   (NULL, 'Reports Team',       'reports_team',      'medium', NULL, NULL, TRUE,  FALSE);
@@ -40,6 +41,8 @@ INSERT INTO users (emp_id, name, email, password_hash, role, team, password_chan
   ('EMP-NET-01',    'Network Team Member 1', 'net1@uiic.co.in',     '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'employee',  'Network',  NULL),
   ('EMP-NET-02',    'Network Team Member 2', 'net2@uiic.co.in',     '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'employee',  'Network',  NULL),
   ('EMP-SEC-01',    'Security Team Member 1','sec1@uiic.co.in',     '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'employee',  'Security', NULL),
+  ('EMP-DATA-01',   'Data Team Member 1',    'data1@uiic.co.in',    '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'employee',  'Data',     NULL),
+  ('EMP-DATA-02',   'Data Team Member 2',    'data2@uiic.co.in',    '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'employee',  'Data',     NULL),
   ('EMP-SAP-01',    'SAP Team Member 1',     'sap1@uiic.co.in',     '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'employee',  'SAP',      NULL),
   ('EMP-GC-01',     'GC Master Member 1',    'gc1@uiic.co.in',      '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'employee',  'GC',       NULL),
   ('EMP-RPT-01',    'Reports Team Member 1', 'reports1@uiic.co.in', '$2b$10$NW3HlIvAopV24VW.BRDZ9.Vgg1CG1.vlJDk9Mtq.iMoHkmkCLVKZi', 'employee',  'Reports',  NULL),
@@ -72,13 +75,13 @@ VALUES
   ((SELECT id FROM ticket_types WHERE type_key='request'), 'Gate Pass Request',         'gate_pass',           'low',    (SELECT id FROM users WHERE emp_id='MGR-NET'),   'security_team', FALSE, TRUE),
   ((SELECT id FROM ticket_types WHERE type_key='request'), 'ADID Request',              'adid_request',        'medium', (SELECT id FROM users WHERE emp_id='MGR-NET'),   'network_team',  FALSE, TRUE);
 
--- Data categories always route to the Security Team.
+-- Data categories always route to the Data Team.
 INSERT INTO ticket_categories
   (ticket_type_id, name, category_key, default_priority, manager_user_id, assigned_team_key, is_team, requires_approval)
 VALUES
-  ((SELECT id FROM ticket_types WHERE type_key='data'), 'Data Audit Request',   'data_audit',    'medium', NULL, 'security_team', FALSE, FALSE),
-  ((SELECT id FROM ticket_types WHERE type_key='data'), 'Data Backup Request',  'data_backup',   'medium', NULL, 'security_team', FALSE, FALSE),
-  ((SELECT id FROM ticket_types WHERE type_key='data'), 'Paycheque Data Request','paycheque_data','medium', NULL, 'security_team', FALSE, FALSE);
+  ((SELECT id FROM ticket_types WHERE type_key='data'), 'Data Audit Request',   'data_audit',    'medium', NULL, 'data_team', FALSE, FALSE),
+  ((SELECT id FROM ticket_types WHERE type_key='data'), 'Data Backup Request',  'data_backup',   'medium', NULL, 'data_team', FALSE, FALSE),
+  ((SELECT id FROM ticket_types WHERE type_key='data'), 'Paycheque Data Request','paycheque_data','medium', NULL, 'data_team', FALSE, FALSE);
 
 -- ── Assign users to their team rows ───────────────────
 UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_key='email_team')     WHERE emp_id IN ('EMP-EMAIL-01', 'EMP-EMAIL-02');
@@ -86,6 +89,7 @@ UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_
 UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_key='infra_team')     WHERE emp_id IN ('EMP-INFRA-01', 'EMP-INFRA-02', 'MGR-INFRA');
 UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_key='network_team')   WHERE emp_id IN ('EMP-NET-01', 'EMP-NET-02', 'MGR-NET');
 UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_key='security_team')   WHERE emp_id IN ('EMP-SEC-01');
+UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_key='data_team')      WHERE emp_id IN ('EMP-DATA-01', 'EMP-DATA-02');
 UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_key='sap_team')        WHERE emp_id IN ('EMP-SAP-01');
 UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_key='gc_master_team')  WHERE emp_id IN ('EMP-GC-01');
 UPDATE users SET category_id = (SELECT id FROM ticket_categories WHERE category_key='reports_team')    WHERE emp_id IN ('EMP-RPT-01');

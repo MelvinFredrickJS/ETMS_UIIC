@@ -18,14 +18,22 @@ async function getInfraTeamCategoryId(): Promise<number | null> {
   return infraTeam?.id ?? null
 }
 
+async function isInfraManager(userId: number): Promise<boolean> {
+  const managed = await categoryModel.findByManagerId(userId)
+  return managed.some(c => c.category_key === 'infra_team')
+}
+
 async function getAllAssets(req: Request, res: Response): Promise<void> {
   try {
     const role = req.user.role as Role
     let category_ids: number[] | undefined
 
     if (role === ROLES.MANAGER) {
-      const managed = await categoryModel.findByManagerId(req.user.id)
-      category_ids = managed.map(c => c.id)
+      const infraManager = await isInfraManager(req.user.id)
+      if (!infraManager) {
+        res.status(403).json({ success: false, message: 'Only Infra Manager can manage assets.' }); return
+      }
+      category_ids = undefined
     } else if (role === ROLES.EMPLOYEE) {
       const isInfra = await isInfraTeamMember(req.user.id)
       if (!isInfra) {
@@ -55,8 +63,8 @@ async function getAssetHistory(req: Request, res: Response): Promise<void> {
     // Access check — admin sees all, manager sees their category, infra team employees see infra assets.
     const role = req.user.role as Role
     if (role === ROLES.MANAGER) {
-      const managed = await categoryModel.findByManagerId(req.user.id)
-      if (!managed.some(c => c.id === asset.category_id)) {
+      const infraManager = await isInfraManager(req.user.id)
+      if (!infraManager) {
         res.status(403).json({ success: false, message: 'Access denied.' }); return
       }
     } else if (role === ROLES.EMPLOYEE) {
@@ -104,9 +112,8 @@ async function getAssetById(req: Request, res: Response): Promise<void> {
     }
 
     if (role === ROLES.MANAGER) {
-      const managedCategories = await categoryModel.findByManagerId(userId)
-      const managedCategoryIds = managedCategories.map(c => c.id)
-      if (managedCategoryIds.includes(asset.category_id) || asset.assigned_to === userId) {
+      const infraManager = await isInfraManager(userId)
+      if (infraManager) {
         res.status(200).json({ success: true, asset }); return
       }
       res.status(403).json({ success: false, message: 'Access denied.' }); return
@@ -171,10 +178,9 @@ async function updateAssetStatus(req: Request, res: Response): Promise<void> {
     if (!asset) { res.status(404).json({ success: false, message: 'Asset not found.' }); return }
 
     if (req.user.role === ROLES.MANAGER) {
-      const managedCategories = await categoryModel.findByManagerId(req.user.id)
-      const managedCategoryIds = managedCategories.map(c => c.id)
-      if (!managedCategoryIds.includes(asset.category_id) && asset.assigned_to !== req.user.id) {
-        res.status(403).json({ success: false, message: 'Access denied.' }); return
+      const infraManager = await isInfraManager(req.user.id)
+      if (!infraManager) {
+        res.status(403).json({ success: false, message: 'Only Infra Manager can update asset status.' }); return
       }
     }
 
@@ -223,10 +229,9 @@ async function transferAsset(req: Request, res: Response): Promise<void> {
     }
 
     if (req.user.role === ROLES.MANAGER) {
-      const managedCategories = await categoryModel.findByManagerId(req.user.id)
-      const managedCategoryIds = managedCategories.map(c => c.id)
-      if (!managedCategoryIds.includes(asset.category_id) && asset.assigned_to !== req.user.id) {
-        res.status(403).json({ success: false, message: 'Access denied.' }); return
+      const infraManager = await isInfraManager(req.user.id)
+      if (!infraManager) {
+        res.status(403).json({ success: false, message: 'Only Infra Manager can transfer assets.' }); return
       }
     }
 

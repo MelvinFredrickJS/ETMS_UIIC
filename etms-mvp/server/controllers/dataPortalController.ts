@@ -19,14 +19,13 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       return
     }
 
-    const { title, description, ticket_type_id, category_id, priority, sla_days, assigned_team_key } = req.body as {
+    const { title, description, ticket_type_id, category_id, priority, sla_days } = req.body as {
       title?: string
       description?: string
       ticket_type_id?: string
       category_id?: string
       priority?: string
       sla_days?: string
-      assigned_team_key?: string
     }
 
     const slaDays = Math.min(30, Math.max(1, Number(sla_days ?? 3)))
@@ -69,14 +68,15 @@ async function createTicket(req: Request, res: Response): Promise<void> {
       res.status(400).json({ success: false, message: 'Data portal can only raise data tickets.' }); return
     }
 
-    const requestedTeamKey = String(assigned_team_key ?? '').trim()
-    const targetTeam = requestedTeamKey
-      ? await categoryModel.findByKey(requestedTeamKey)
-      : (category.assigned_team_key ? await categoryModel.findByKey(category.assigned_team_key) : null)
+    const targetTeam = await categoryModel.findByKey('data_team')
 
     if (!targetTeam || !targetTeam.is_team) {
       if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
-      res.status(400).json({ success: false, message: 'Selected target team is invalid.' }); return
+      res.status(400).json({ success: false, message: 'Data Team is not configured for routing.' }); return
+    }
+    if (category.assigned_team_key !== 'data_team') {
+      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      res.status(400).json({ success: false, message: 'Selected data category is not mapped to Data Team.' }); return
     }
 
     const ticket_no = await generateTicketId(category.type_key!)
@@ -252,4 +252,36 @@ async function getTicketById(req: Request, res: Response): Promise<void> {
   }
 }
 
-export { createTicket, listTickets, getTicketById, listTeams }
+async function downloadResponseFile(req: Request, res: Response): Promise<void> {
+  try {
+    if (req.user.role !== ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
+
+    const id = Number(req.params.id)
+    const ticket = await ticketModel.findById(id)
+    if (!ticket) {
+      res.status(404).json({ success: false, message: 'Ticket not found.' })
+      return
+    }
+    if (Number(ticket.raised_by) !== Number(req.user.id)) {
+      res.status(403).json({ success: false, message: 'You do not have permission to download this file.' })
+      return
+    }
+
+    const attachments = await ticketModel.getAttachments(id)
+    const responseAttachment = attachments.find(a => Number(a.uploaded_by) === Number(ticket.assigned_to))
+    if (!responseAttachment) {
+      res.status(404).json({ success: false, message: 'Requested data file is not available yet.' })
+      return
+    }
+
+    res.download(responseAttachment.file_path, responseAttachment.original_name)
+  } catch (err) {
+    console.error('dataPortal downloadResponseFile error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+export { createTicket, listTickets, getTicketById, listTeams, downloadResponseFile }

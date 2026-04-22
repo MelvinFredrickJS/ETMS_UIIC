@@ -289,7 +289,7 @@ export default function NewTicketPage() {
               ) : (
                 <input
                   type="file"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
                   onChange={e => setFile(e.target.files?.[0] ?? null)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-[#1B3A6B] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-[#15305a]"
                 />

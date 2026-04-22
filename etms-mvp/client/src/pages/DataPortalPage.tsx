@@ -1,26 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { createDataPortalTicket, getCategories, getDataPortalTickets, getDataPortalTeams } from '../api/ticketApi'
+import { createDataPortalTicket, getCategories, getDataPortalTickets, downloadDataPortalTicketResponseFile } from '../api/ticketApi'
 import type { Ticket, TicketTypeGroup } from '../types'
-
-interface TeamOption {
-  id: number
-  name: string
-  category_key: string
-}
 
 export default function DataPortalPage() {
   const { user, logout } = useAuth()
   const [groups, setGroups] = useState<TicketTypeGroup[]>([])
   const [tickets, setTickets] = useState<Ticket[]>([])
-  const [teams, setTeams] = useState<TeamOption[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [form, setForm] = useState({
     category_id: '',
-    assigned_team_key: '',
     title: '',
     description: '',
     priority: 'medium',
@@ -36,21 +29,17 @@ export default function DataPortalPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [categoriesRes, ticketsRes, teamsRes] = await Promise.all([
+        const [categoriesRes, ticketsRes] = await Promise.all([
           getCategories(),
           getDataPortalTickets({ limit: 20 }),
-          getDataPortalTeams(),
         ])
         setGroups(categoriesRes.data.types)
         setTickets(ticketsRes.data.tickets)
-        setTeams(teamsRes.data.teams)
         const defaultCategory = categoriesRes.data.types.find(group => group.type_key === 'data')?.categories?.[0]
-        const defaultTeamKey = teamsRes.data.teams?.[0]?.category_key ?? ''
         if (defaultCategory) {
           setForm(current => ({
             ...current,
             category_id: String(defaultCategory.id),
-            assigned_team_key: current.assigned_team_key || defaultTeamKey,
           }))
         }
       } catch {
@@ -79,7 +68,6 @@ export default function DataPortalPage() {
       payload.append('description', form.description)
       payload.append('ticket_type_id', String(selectedCategory.ticket_type_id ?? 3))
       payload.append('category_id', form.category_id)
-      payload.append('assigned_team_key', form.assigned_team_key)
       payload.append('priority', form.priority)
       payload.append('sla_days', form.sla_days)
       if (attachment) {
@@ -99,6 +87,29 @@ export default function DataPortalPage() {
       setError(msg ?? 'Unable to submit the ticket.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleDownloadResponse(ticketId: number) {
+    setError('')
+    setDownloadingId(ticketId)
+    try {
+      const { blob, filename } = await downloadDataPortalTicketResponseFile(ticketId)
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      const msg = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined
+      setError(msg ?? 'Requested data file is not available yet.')
+    } finally {
+      setDownloadingId(null)
     }
   }
 
@@ -138,20 +149,7 @@ export default function DataPortalPage() {
               </div>
 
               <div>
-                <label htmlFor="target-team" className="field-label">Target team</label>
-                <select
-                  id="target-team"
-                  required
-                  value={form.assigned_team_key}
-                  onChange={e => setForm(current => ({ ...current, assigned_team_key: e.target.value }))}
-                  className="input-field"
-                >
-                  <option value="">Select a target team</option>
-                  {teams.map(team => (
-                    <option key={team.id} value={team.category_key}>{team.name}</option>
-                  ))}
-                </select>
-                <p className="field-help">Tickets are routed to this team immediately.</p>
+                <p className="field-help">Data requests are auto-routed to Data Team.</p>
               </div>
 
               <div>
@@ -184,11 +182,11 @@ export default function DataPortalPage() {
                 <input
                   id="data-attachment"
                   type="file"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
                   onChange={e => setAttachment(e.target.files?.[0] ?? null)}
                   className="input-field"
                 />
-                <p className="field-help">Allowed: PDF, DOC, DOCX, PNG, JPG. Max size: 5MB.</p>
+                <p className="field-help">Allowed: PDF, DOC, DOCX, TXT, PNG, JPG. Max size: 5MB.</p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -258,6 +256,14 @@ export default function DataPortalPage() {
                     <div key={ticket.id} className="rounded-xl border border-slate-200 p-3">
                       <p className="text-sm font-medium text-slate-900">{ticket.ticket_no}</p>
                       <p className="text-xs text-slate-500">{ticket.category_name} · {ticket.status}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadResponse(ticket.id)}
+                        disabled={downloadingId === ticket.id}
+                        className="mt-2 text-xs font-semibold text-[#1B3A6B] hover:underline disabled:opacity-50"
+                      >
+                        {downloadingId === ticket.id ? 'Preparing download...' : 'Download requested data'}
+                      </button>
                     </div>
                   ))
                 )}

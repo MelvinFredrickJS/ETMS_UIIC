@@ -370,6 +370,15 @@ async function updateTicketStatus(req: Request, res: Response): Promise<void> {
     const { valid, reason } = validateTransition(ticket.status, status as TicketStatus, req.user.role as Role)
     if (!valid) { res.status(400).json({ success: false, message: reason }); return }
 
+    if (status === 'resolved' && ticket.type_key === 'data') {
+      const attachments = await ticketModel.getAttachments(id)
+      const responseAttachment = getLatestResponseAttachment(attachments, ticket.assigned_to)
+      if (!responseAttachment) {
+        res.status(400).json({ success: false, message: 'Upload requested data file before marking this ticket resolved.' })
+        return
+      }
+    }
+
     if (status === 'reported') {
       const reason = String(report_reason ?? note ?? '').trim()
       const canEscalateToManager = ticket.type_key === 'request'
@@ -486,10 +495,134 @@ async function downloadTicketFile(req: Request, res: Response): Promise<void> {
     const attachments = await ticketModel.getAttachments(id)
     if (!attachments.length) { res.status(404).json({ success: false, message: 'No attachments found.' }); return }
 
-    const attachment = attachments[0]
+    const attachment = attachments.find(a => Number(a.uploaded_by) === Number(ticket.raised_by)) ?? attachments[0]
     res.download(attachment.file_path, attachment.original_name)
   } catch (err) {
     console.error('downloadTicketFile error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+function getLatestResponseAttachment(attachments: Awaited<ReturnType<typeof ticketModel.getAttachments>>, assigneeId: number | null) {
+  if (!assigneeId) return null
+  return attachments.find(a => Number(a.uploaded_by) === Number(assigneeId)) ?? null
+}
+
+async function uploadDataResponseFile(req: Request, res: Response): Promise<void> {
+  let tmpFilePath: string | null = null
+  try {
+    if (req.user.role === ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
+
+    const id = Number(req.params.id)
+    const ticket = await ticketModel.findById(id)
+    if (!ticket) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      res.status(404).json({ success: false, message: 'Ticket not found.' })
+      return
+    }
+
+    if (ticket.type_key !== 'data') {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      res.status(400).json({ success: false, message: 'Response upload is only allowed for data tickets.' })
+      return
+    }
+
+    if (Number(ticket.assigned_to) !== Number(req.user.id)) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      res.status(403).json({ success: false, message: 'Only the assigned employee can upload response data.' })
+      return
+    }
+
+    if (!['assigned', 'in_progress'].includes(ticket.status)) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      res.status(400).json({ success: false, message: 'Response file can only be uploaded while ticket is assigned or in progress.' })
+      return
+    }
+
+    if (!req.file) {
+      res.status(400).json({ success: false, message: 'file is required.' })
+      return
+    }
+    tmpFilePath = req.file.path
+
+    const finalName = buildSafeFilename(`response-${ticket.id}`, req.file.originalname)
+    const responseUploadDir = process.env.RESPONSE_UPLOAD_DIR || path.join(process.env.UPLOAD_DIR || './uploads', 'responses')
+    if (!fs.existsSync(responseUploadDir)) {
+      fs.mkdirSync(responseUploadDir, { recursive: true })
+    }
+    const finalPath = path.join(responseUploadDir, finalName)
+
+    try {
+      fs.renameSync(tmpFilePath, finalPath)
+      tmpFilePath = null
+
+      await ticketModel.saveAttachment({
+        ticket_id: ticket.id,
+        filename: finalName,
+        original_name: req.file.originalname,
+        file_path: finalPath,
+        file_size: req.file.size,
+        mime_type: req.file.mimetype,
+        uploaded_by: req.user.id,
+      })
+    } catch (fileErr) {
+      if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+      else fs.unlink(finalPath, () => {})
+      console.error('uploadDataResponseFile file error:', fileErr)
+      res.status(500).json({ success: false, message: 'Failed to store response file.' })
+      return
+    }
+
+    await ticketModel.logAction({
+      ticket_id: ticket.id,
+      action: 'DATA_RESPONSE_UPLOADED',
+      old_status: ticket.status,
+      new_status: ticket.status,
+      performed_by: req.user.id,
+      note: `Response file uploaded: ${req.file.originalname}`,
+    })
+
+    res.status(200).json({ success: true, message: 'Response file uploaded successfully.' })
+  } catch (err) {
+    if (tmpFilePath) fs.unlink(tmpFilePath, () => {})
+    console.error('uploadDataResponseFile error:', err)
+    res.status(500).json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+async function downloadTicketResponseFile(req: Request, res: Response): Promise<void> {
+  try {
+    if (req.user.role === ROLES.DATA_TEAM) {
+      res.status(403).json({ success: false, message: 'Access denied.' })
+      return
+    }
+
+    const id = Number(req.params.id)
+    const ticket = await ticketModel.findById(id)
+    if (!ticket) {
+      res.status(404).json({ success: false, message: 'Ticket not found.' })
+      return
+    }
+
+    const allowed = await canAccessTicket(req.user, ticket)
+    if (!allowed) {
+      res.status(403).json({ success: false, message: 'You do not have permission to access this file.' })
+      return
+    }
+
+    const attachments = await ticketModel.getAttachments(id)
+    const responseAttachment = getLatestResponseAttachment(attachments, ticket.assigned_to)
+    if (!responseAttachment) {
+      res.status(404).json({ success: false, message: 'No response file uploaded yet.' })
+      return
+    }
+
+    res.download(responseAttachment.file_path, responseAttachment.original_name)
+  } catch (err) {
+    console.error('downloadTicketResponseFile error:', err)
     res.status(500).json({ success: false, message: 'Internal server error.' })
   }
 }
@@ -503,4 +636,13 @@ async function canAccessTicket(user: Request['user'], ticket: TicketRow): Promis
   return false
 }
 
-export { createTicket, listTickets, getTicketById, getAllowedStatuses, updateTicketStatus, downloadTicketFile }
+export {
+  createTicket,
+  listTickets,
+  getTicketById,
+  getAllowedStatuses,
+  updateTicketStatus,
+  downloadTicketFile,
+  uploadDataResponseFile,
+  downloadTicketResponseFile,
+}

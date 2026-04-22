@@ -6,7 +6,8 @@ import { ROLES } from '../constants/ROLES'
 import {
   getTicketById, getAllowedStatuses, updateStatus,
   approveTicket, rejectTicket, reapproveTicket,
-  getEmployeesByCategory,
+  getEmployeesByCategory, downloadTicketFile,
+  uploadTicketResponseFile, downloadTicketResponseFile,
 } from '../api/ticketApi'
 import StatusBadge   from '../components/common/StatusBadge'
 import PriorityBadge from '../components/common/PriorityBadge'
@@ -39,6 +40,8 @@ export default function TicketDetailPage() {
   // Re-approve
   const [categoryEmployees, setCategoryEmployees] = useState<Employee[]>([])
   const [selectedEmployee,  setSelectedEmployee]  = useState('')
+  const [responseFile,      setResponseFile]      = useState<File | null>(null)
+  const [uploadingResponse, setUploadingResponse] = useState(false)
 
   async function load() {
     if (!id) return
@@ -99,6 +102,72 @@ export default function TicketDetailPage() {
     }
   }
 
+  async function handleAttachmentDownload() {
+    if (!id) return
+    setActionError('')
+
+    try {
+      const { blob, filename } = await downloadTicketFile(id)
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (err: unknown) {
+      const msg =
+        typeof err === 'object' && err !== null && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      setActionError(msg ?? 'Failed to download attachment.')
+    }
+  }
+
+  async function handleResponseDownload() {
+    if (!id) return
+    setActionError('')
+
+    try {
+      const { blob, filename } = await downloadTicketResponseFile(id)
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (err: unknown) {
+      const msg =
+        typeof err === 'object' && err !== null && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      setActionError(msg ?? 'Failed to download response file.')
+    }
+  }
+
+  async function handleResponseUpload() {
+    if (!id || !responseFile) return
+    setActionError('')
+    setUploadingResponse(true)
+    try {
+      await uploadTicketResponseFile(id, responseFile)
+      setResponseFile(null)
+      showToast('Response data uploaded successfully.')
+      await load()
+    } catch (err: unknown) {
+      const msg =
+        typeof err === 'object' && err !== null && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined
+      setActionError(msg ?? 'Failed to upload response data.')
+    } finally {
+      setUploadingResponse(false)
+    }
+  }
+
   const latestAssigneeReportLog = useMemo(() => {
     for (let i = logs.length - 1; i >= 0; i -= 1) {
       const log = logs[i]
@@ -142,6 +211,9 @@ export default function TicketDetailPage() {
   const isReapproval = ticket.status === 'pending_approval' && !!ticket.report_reason
   const canManageApproval = user.role === ROLES.MANAGER && Number(ticket.approval_owner_id) === Number(user.id)
   const canEscalateToManager = ticket.type_key === 'request'
+  const requestAttachment = attachments.find(a => Number(a.uploaded_by) === Number(ticket.raised_by)) ?? attachments[0] ?? null
+  const responseAttachment = attachments.find(a => Number(a.uploaded_by) === Number(ticket.assigned_to)) ?? null
+  const canResolveCurrentTicket = ticket.type_key !== 'data' || !!responseAttachment
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -197,24 +269,44 @@ export default function TicketDetailPage() {
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
           </div>
 
-          {/* Attachment */}
+          {/* Request Attachment */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Attachment</p>
-            {attachments.length > 0 ? (
+            <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Request Attachment</p>
+            {requestAttachment ? (
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-700">{attachments[0].original_name} ({attachments[0].file_size} bytes)</span>
-                <a
-                  href={`${import.meta.env.VITE_API_URL?.replace('/api','') ?? 'http://localhost:5000'}/api/tickets/${id}/file`}
-                  target="_blank" rel="noreferrer"
+                <span className="text-sm text-gray-700">{requestAttachment.original_name} ({requestAttachment.file_size} bytes)</span>
+                <button
+                  type="button"
+                  onClick={handleAttachmentDownload}
                   className="text-sm text-[#1B3A6B] font-semibold hover:underline"
                 >
                   ⬇ Download
-                </a>
+                </button>
               </div>
             ) : (
               <p className="text-sm text-gray-400 italic">No file attached.</p>
             )}
           </div>
+
+          {ticket.type_key === 'data' && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Requested Data File</p>
+              {responseAttachment ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-700">{responseAttachment.original_name} ({responseAttachment.file_size} bytes)</span>
+                  <button
+                    type="button"
+                    onClick={handleResponseDownload}
+                    className="text-sm text-[#1B3A6B] font-semibold hover:underline"
+                  >
+                    ⬇ Download Data File
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic">Assigned employee has not uploaded requested data yet.</p>
+              )}
+            </div>
+          )}
 
           {/* Activity Log */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -328,12 +420,37 @@ export default function TicketDetailPage() {
             {/* EMPLOYEE / MANAGER — in_progress */}
             {['employee','manager'].includes(user.role) && ticket.status === 'in_progress' && isAssignee && (
               <>
+                {ticket.type_key === 'data' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-xs font-medium text-blue-900 mb-2">Upload Requested Data</p>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+                      onChange={e => setResponseFile(e.target.files?.[0] ?? null)}
+                      className="w-full text-xs"
+                    />
+                    <button
+                      type="button"
+                      disabled={!responseFile || uploadingResponse}
+                      onClick={handleResponseUpload}
+                      className="mt-2 w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold disabled:opacity-40 hover:bg-blue-700"
+                    >
+                      {uploadingResponse ? 'Uploading...' : 'Upload Data File'}
+                    </button>
+                  </div>
+                )}
                 <button
+                  disabled={!canResolveCurrentTicket}
                   onClick={() => doAction(() => updateStatus(id!, 'resolved'), 'Ticket marked resolved.')}
-                  className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-green-700"
+                  className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-40"
                 >
                   ✅ Mark Resolved
                 </button>
+                {ticket.type_key === 'data' && !canResolveCurrentTicket && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                    Upload requested data file before marking this ticket resolved.
+                  </p>
+                )}
                 <button onClick={() => setReportModal(true)}
                   className="w-full bg-rose-50 text-rose-600 border border-rose-200 py-2 rounded-lg text-sm font-semibold hover:bg-rose-100">
                   🚩 Report Issue

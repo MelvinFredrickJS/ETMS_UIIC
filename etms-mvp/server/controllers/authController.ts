@@ -1,7 +1,14 @@
 import type { Request, Response } from 'express'
 import bcrypt from 'bcrypt'
 import * as userModel from '../models/userModel'
+import * as categoryModel from '../models/categoryModel'
 import { generateToken } from '../utils/jwtUtils'
+
+async function resolveCanManageAssets(userId: number, role: string): Promise<boolean> {
+  if (role !== 'manager') return false
+  const managedCategories = await categoryModel.findByManagerId(userId)
+  return managedCategories.some(category => category.category_key === 'infra_team')
+}
 
 async function login(req: Request, res: Response): Promise<void> {
   try {
@@ -24,6 +31,7 @@ async function login(req: Request, res: Response): Promise<void> {
     if (!match) { res.status(401).json({ success: false, message: 'Invalid credentials.' }); return }
 
     const token = generateToken(user)
+    const can_manage_assets = await resolveCanManageAssets(user.id, user.role)
 
     res.status(200).json({
       success: true,
@@ -35,6 +43,7 @@ async function login(req: Request, res: Response): Promise<void> {
         email:      user.email,
         role:       user.role,
         team: user.team,
+        can_manage_assets,
         password_changed_at: user.password_changed_at,
       },
     })
@@ -48,6 +57,7 @@ async function me(req: Request, res: Response): Promise<void> {
   try {
     const user = await userModel.findByIdWithPassword(req.user.id)
     if (!user) { res.status(401).json({ success: false, message: 'User not found.' }); return }
+    const can_manage_assets = await resolveCanManageAssets(user.id, user.role)
     res.status(200).json({
       success: true,
       user: {
@@ -59,6 +69,7 @@ async function me(req: Request, res: Response): Promise<void> {
         team:                user.team,
         category_id:         user.category_id,
         is_active:           user.is_active,
+        can_manage_assets,
         password_changed_at: user.password_changed_at,
       },
     })

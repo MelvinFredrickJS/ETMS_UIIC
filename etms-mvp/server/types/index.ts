@@ -120,4 +120,5 @@ export interface AttachmentRow {
   file_size: number
   mime_type: string
   uploaded_by: number
+  uploaded_at?: string
 }
