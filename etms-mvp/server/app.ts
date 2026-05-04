@@ -3,6 +3,9 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import path from 'path'
+import fs from 'fs'
+import yaml from 'yaml'
+import swaggerUi from 'swagger-ui-express'
 import authRoutes from './routes/authRoutes'
 import categoryRoutes from './routes/categoryRoutes'
 import assetRoutes from './routes/assetRoutes'
@@ -16,11 +19,36 @@ import importRoutes from './routes/importRoutes'
 
 const app = express()
 
+function loadOpenApiSpec(): object {
+  const candidates = [
+    path.resolve(__dirname, '../../docs/openapi.yaml'),
+    path.resolve(__dirname, '../../../docs/openapi.yaml'),
+  ]
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        const raw = fs.readFileSync(candidate, 'utf8')
+        return yaml.parse(raw) as object
+      }
+    } catch (err) {
+      console.warn(`⚠️  Failed to load OpenAPI spec from ${candidate}:`, (err as Error).message)
+    }
+  }
+
+  console.warn('⚠️  OpenAPI spec not found. Swagger UI will load with an empty spec.')
+  return {}
+}
+
 app.use(helmet())
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(morgan('dev'))
+
+// Swagger UI
+const openApiSpec = loadOpenApiSpec()
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec))
 
 // Routes
 app.use('/api/auth',        authRoutes)

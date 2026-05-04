@@ -1,0 +1,1918 @@
+openapi: 3.0.3
+info:
+  title: ETMS API
+  version: 1.0.0
+  description: Employee Ticket Management System API
+servers:
+  - url: http://localhost:5003
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+  - name: Tickets
+  - name: Approvals
+  - name: Assets
+  - name: Users
+  - name: Categories
+  - name: Reports
+  - name: Lookup
+  - name: Import
+  - name: DataPortal
+  - name: System
+
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              login:
+                value:
+                  email: admin@uiic.co.in
+                  password: Password@123
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/tickets:
+    post:
+      tags: [Tickets]
+      summary: Create ticket
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateTicketRequest'
+      responses:
+        '201':
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketCreateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Ticket number conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [Tickets]
+      summary: List tickets
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending_approval, approved, assigned, in_progress, reported, resolved, closed, rejected]
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [complaint, request, data]
+        - in: query
+          name: priority
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+        - in: query
+          name: ticket_id
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 15
+      responses:
+        '200':
+          description: Ticket list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketListResponse'
+
+  /api/tickets/{id}:
+    get:
+      tags: [Tickets]
+      summary: Get ticket details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Ticket detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketDetailResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/tickets/{id}/allowed-statuses:
+    get:
+      tags: [Tickets]
+      summary: Get allowed status transitions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Allowed statuses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowedStatusesResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/tickets/{id}/status:
+    put:
+      tags: [Tickets]
+      summary: Update ticket status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketStatusUpdateRequest'
+      responses:
+        '200':
+          description: Ticket updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketUpdateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/tickets/{id}/file:
+    get:
+      tags: [Tickets]
+      summary: Download ticket attachment
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: File download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/tickets/{id}/response-file:
+    post:
+      tags: [Tickets]
+      summary: Upload response file for data tickets
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadResponseFileRequest'
+      responses:
+        '200':
+          description: Upload successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+    get:
+      tags: [Tickets]
+      summary: Download response file for data tickets
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: File download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/approvals/pending:
+    get:
+      tags: [Approvals]
+      summary: List pending approvals
+      responses:
+        '200':
+          description: Pending approvals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingApprovalsResponse'
+
+  /api/approvals/{ticketId}/approve:
+    post:
+      tags: [Approvals]
+      summary: Approve ticket
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Ticket approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketUpdateResponse'
+
+  /api/approvals/{ticketId}/reject:
+    post:
+      tags: [Approvals]
+      summary: Reject ticket
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectRequest'
+      responses:
+        '200':
+          description: Ticket rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketUpdateResponse'
+
+  /api/approvals/{ticketId}/reapprove:
+    post:
+      tags: [Approvals]
+      summary: Re-approve escalated ticket
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReapproveRequest'
+      responses:
+        '200':
+          description: Ticket re-approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketUpdateResponse'
+
+  /api/assets:
+    get:
+      tags: [Assets]
+      summary: List assets
+      responses:
+        '200':
+          description: Asset list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetListResponse'
+    post:
+      tags: [Assets]
+      summary: Create asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssetRequest'
+      responses:
+        '201':
+          description: Asset created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+
+  /api/assets/my:
+    get:
+      tags: [Assets]
+      summary: List assets assigned to current user
+      responses:
+        '200':
+          description: Asset list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetListResponse'
+
+  /api/assets/{id}:
+    get:
+      tags: [Assets]
+      summary: Get asset by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Assets]
+      summary: Delete asset
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Asset deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/assets/{id}/history:
+    get:
+      tags: [Assets]
+      summary: Get asset assignment history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Assignment history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetHistoryResponse'
+
+  /api/assets/{id}/spec:
+    patch:
+      tags: [Assets]
+      summary: Update asset spec fields
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssetSpecRequest'
+      responses:
+        '200':
+          description: Asset updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+
+  /api/assets/{id}/status:
+    patch:
+      tags: [Assets]
+      summary: Update asset status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssetStatusRequest'
+      responses:
+        '200':
+          description: Asset updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+
+  /api/assets/{id}/transfer:
+    post:
+      tags: [Assets]
+      summary: Transfer asset to another user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferAssetRequest'
+      responses:
+        '200':
+          description: Transfer complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetResponse'
+
+  /api/users:
+    get:
+      tags: [Users]
+      summary: List users
+      responses:
+        '200':
+          description: User list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+    post:
+      tags: [Users]
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserResponse'
+
+  /api/users/transfer-ownership:
+    post:
+      tags: [Users]
+      summary: Transfer ownership references
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferOwnershipRequest'
+      responses:
+        '200':
+          description: Ownership transferred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferOwnershipResponse'
+
+  /api/users/change-password:
+    patch:
+      tags: [Users]
+      summary: Change password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangePasswordResponse'
+
+  /api/users/{id}/toggle-active:
+    patch:
+      tags: [Users]
+      summary: Toggle user active status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToggleUserActiveResponse'
+
+  /api/users/{id}/name:
+    patch:
+      tags: [Users]
+      summary: Update user name
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserNameRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateUserNameResponse'
+
+  /api/users/{id}:
+    delete:
+      tags: [Users]
+      summary: Delete user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/categories:
+    get:
+      tags: [Categories]
+      summary: List categories grouped by type
+      responses:
+        '200':
+          description: Category groups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryGroupsResponse'
+
+  /api/categories/{categoryId}/employees:
+    get:
+      tags: [Categories]
+      summary: List employees by category
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Employee list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryEmployeesResponse'
+
+  /api/categories/teams:
+    get:
+      tags: [Categories]
+      summary: List teams
+      responses:
+        '200':
+          description: Teams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamsResponse'
+    post:
+      tags: [Categories]
+      summary: Create team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamRequest'
+      responses:
+        '201':
+          description: Team created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTeamResponse'
+
+  /api/categories/teams/{teamId}:
+    delete:
+      tags: [Categories]
+      summary: Delete team
+      parameters:
+        - in: path
+          name: teamId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Team deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/reports/top-failing-devices:
+    get:
+      tags: [Reports]
+      summary: Top failing devices report
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Report data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopFailingDevicesResponse'
+
+  /api/lookup/employee:
+    get:
+      tags: [Lookup]
+      summary: Lookup employee by emp_id or asset serial
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lookup result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeLookupResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/import/assets/excel:
+    post:
+      tags: [Import]
+      summary: Import assets from Excel
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImportAssetsRequest'
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportAssetsResponse'
+
+  /api/data-portal/teams:
+    get:
+      tags: [DataPortal]
+      summary: List data portal teams
+      responses:
+        '200':
+          description: Teams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPortalTeamsResponse'
+
+  /api/data-portal/tickets:
+    post:
+      tags: [DataPortal]
+      summary: Create data portal ticket
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateDataPortalTicketRequest'
+      responses:
+        '201':
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPortalTicketCreateResponse'
+    get:
+      tags: [DataPortal]
+      summary: List data portal tickets
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: priority
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 15
+      responses:
+        '200':
+          description: Ticket list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketListResponse'
+
+  /api/data-portal/tickets/{id}:
+    get:
+      tags: [DataPortal]
+      summary: Get data portal ticket
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Ticket detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketDetailResponse'
+
+  /api/data-portal/tickets/{id}/response-file:
+    get:
+      tags: [DataPortal]
+      summary: Download requested data file
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: File download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    MeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        emp_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [employee, manager, admin, data_team]
+        team:
+          type: string
+          nullable: true
+        category_id:
+          type: integer
+          nullable: true
+        is_active:
+          type: boolean
+        can_manage_assets:
+          type: boolean
+          nullable: true
+        password_changed_at:
+          type: string
+          nullable: true
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticket_no:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [pending_approval, approved, assigned, in_progress, reported, resolved, closed, rejected]
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        type_key:
+          type: string
+          enum: [complaint, request, data]
+        type_name:
+          type: string
+        category_id:
+          type: integer
+        category_name:
+          type: string
+        category_key:
+          type: string
+        raised_by:
+          type: integer
+        raised_by_name:
+          type: string
+        raised_by_emp_id:
+          type: string
+        raised_by_email:
+          type: string
+        assigned_to:
+          type: integer
+          nullable: true
+        assigned_to_name:
+          type: string
+          nullable: true
+        approval_owner_id:
+          type: integer
+          nullable: true
+        asset_id:
+          type: integer
+          nullable: true
+        asset_name:
+          type: string
+          nullable: true
+        asset_serial_number:
+          type: string
+          nullable: true
+        rejection_reason:
+          type: string
+          nullable: true
+        report_reason:
+          type: string
+          nullable: true
+        sla_days:
+          type: integer
+        sla_due_date:
+          type: string
+          nullable: true
+        escalated:
+          type: boolean
+          nullable: true
+        escalated_at:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        updated_at:
+          type: string
+
+    TicketLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticket_id:
+          type: integer
+        action:
+          type: string
+        old_status:
+          type: string
+          nullable: true
+        new_status:
+          type: string
+          nullable: true
+        performed_by:
+          type: integer
+          nullable: true
+        actor_name:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: integer
+        ticket_id:
+          type: integer
+        filename:
+          type: string
+        original_name:
+          type: string
+        file_path:
+          type: string
+        file_size:
+          type: integer
+        mime_type:
+          type: string
+        uploaded_by:
+          type: integer
+        uploaded_at:
+          type: string
+
+    TicketListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        tickets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ticket'
+        total:
+          type: integer
+        page:
+          type: integer
+        totalPages:
+          type: integer
+
+    TicketDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        ticket:
+          $ref: '#/components/schemas/Ticket'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketLog'
+
+    TicketCreateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        ticket:
+          $ref: '#/components/schemas/Ticket'
+
+    TicketUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        ticket:
+          $ref: '#/components/schemas/Ticket'
+
+    AllowedStatusesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        allowedStatuses:
+          type: array
+          items:
+            type: string
+
+    CreateTicketRequest:
+      type: object
+      required: [title, description, ticket_type_id, category_id, priority, sla_days]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        ticket_type_id:
+          type: integer
+        category_id:
+          type: integer
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        sla_days:
+          type: integer
+          minimum: 1
+          maximum: 30
+        asset_id:
+          type: integer
+        file:
+          type: string
+          format: binary
+
+    TicketStatusUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending_approval, approved, assigned, in_progress, reported, resolved, closed, rejected]
+        note:
+          type: string
+        report_reason:
+          type: string
+
+    UploadResponseFileRequest:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+
+    PendingApprovalsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        tickets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ticket'
+        total:
+          type: integer
+
+    RejectRequest:
+      type: object
+      required: [rejection_reason]
+      properties:
+        rejection_reason:
+          type: string
+          minLength: 10
+
+    ReapproveRequest:
+      type: object
+      required: [assigned_to]
+      properties:
+        assigned_to:
+          type: integer
+
+    Asset:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        serial_number:
+          type: string
+        category_id:
+          type: integer
+        category_name:
+          type: string
+        assigned_to:
+          type: integer
+        assigned_user_name:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, under_repair, retired]
+        machine_type:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        ram:
+          type: string
+          nullable: true
+        hdd:
+          type: string
+          nullable: true
+        monitor_serial:
+          type: string
+          nullable: true
+        monitor_make:
+          type: string
+          nullable: true
+        system_ip:
+          type: string
+          nullable: true
+        port:
+          type: string
+          nullable: true
+        ms_office_ver:
+          type: string
+          nullable: true
+        os:
+          type: string
+          nullable: true
+        host_id:
+          type: string
+          nullable: true
+        floor:
+          type: string
+          nullable: true
+        branch:
+          type: string
+          nullable: true
+
+    AssetResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        asset:
+          $ref: '#/components/schemas/Asset'
+
+    AssetListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Asset'
+
+    AssignmentHistory:
+      type: object
+      properties:
+        id:
+          type: integer
+        asset_id:
+          type: integer
+        from_user_id:
+          type: integer
+          nullable: true
+        to_user_id:
+          type: integer
+        transferred_by:
+          type: integer
+          nullable: true
+        assigned_at:
+          type: string
+        returned_at:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        from_name:
+          type: string
+          nullable: true
+        to_name:
+          type: string
+          nullable: true
+        by_name:
+          type: string
+          nullable: true
+
+    AssetHistoryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignmentHistory'
+
+    CreateAssetRequest:
+      type: object
+      required: [name, serial_number, category_id, assigned_to]
+      properties:
+        name:
+          type: string
+        serial_number:
+          type: string
+        category_id:
+          type: integer
+        assigned_to:
+          type: integer
+        status:
+          type: string
+          enum: [active, under_repair, retired]
+        machine_type:
+          type: string
+        model:
+          type: string
+        ram:
+          type: string
+        hdd:
+          type: string
+        monitor_serial:
+          type: string
+        monitor_make:
+          type: string
+        system_ip:
+          type: string
+        port:
+          type: string
+        ms_office_ver:
+          type: string
+        os:
+          type: string
+        host_id:
+          type: string
+        floor:
+          type: string
+        branch:
+          type: string
+
+    UpdateAssetSpecRequest:
+      type: object
+      properties:
+        machine_type:
+          type: string
+        model:
+          type: string
+        ram:
+          type: string
+        hdd:
+          type: string
+        monitor_serial:
+          type: string
+        monitor_make:
+          type: string
+        system_ip:
+          type: string
+        port:
+          type: string
+        ms_office_ver:
+          type: string
+        os:
+          type: string
+        host_id:
+          type: string
+        floor:
+          type: string
+        branch:
+          type: string
+
+    UpdateAssetStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [active, under_repair, retired]
+
+    TransferAssetRequest:
+      type: object
+      required: [to_user_id]
+      properties:
+        to_user_id:
+          type: integer
+        note:
+          type: string
+          maxLength: 500
+
+    UserListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    CreateUserRequest:
+      type: object
+      required: [emp_id, name, email, password, role]
+      properties:
+        emp_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+          format: password
+        role:
+          type: string
+          enum: [employee, manager, admin, data_team]
+        category_id:
+          type: integer
+          nullable: true
+        team:
+          type: string
+          nullable: true
+
+    CreateUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/User'
+        auto_assigned_asset:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            serial_number:
+              type: string
+
+    TransferOwnershipRequest:
+      type: object
+      required: [from_user_id, to_user_id]
+      properties:
+        from_user_id:
+          type: integer
+        to_user_id:
+          type: integer
+
+    TransferOwnershipResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        reassigned:
+          type: object
+          properties:
+            tickets_raised:
+              type: integer
+            tickets_assigned:
+              type: integer
+            logs:
+              type: integer
+            attachments:
+              type: integer
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword, confirmPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+        confirmPassword:
+          type: string
+
+    ChangePasswordResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    UpdateUserNameRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    UpdateUserNameResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            emp_id:
+              type: string
+            name:
+              type: string
+            role:
+              type: string
+
+    ToggleUserActiveResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            emp_id:
+              type: string
+            name:
+              type: string
+            is_active:
+              type: boolean
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category_key:
+          type: string
+        default_priority:
+          type: string
+          nullable: true
+        requires_approval:
+          type: boolean
+        ticket_type_id:
+          type: integer
+          nullable: true
+        assigned_team_key:
+          type: string
+          nullable: true
+        is_team:
+          type: boolean
+          nullable: true
+
+    TicketTypeGroup:
+      type: object
+      properties:
+        type_key:
+          type: string
+        type_name:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+
+    CategoryGroupsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        types:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketTypeGroup'
+
+    CategoryEmployeesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        employees:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              emp_id:
+                type: string
+              email:
+                type: string
+                format: email
+
+    TeamSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category_key:
+          type: string
+        manager_user_id:
+          type: integer
+          nullable: true
+        manager_name:
+          type: string
+          nullable: true
+
+    TeamsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamSummary'
+
+    CreateTeamRequest:
+      type: object
+      required: [name, manager_user_id]
+      properties:
+        name:
+          type: string
+        category_key:
+          type: string
+        manager_user_id:
+          type: integer
+
+    CreateTeamResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        team:
+          $ref: '#/components/schemas/TeamSummary'
+        complaint_category:
+          $ref: '#/components/schemas/Category'
+
+    TopFailingDevice:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        serial_number:
+          type: string
+        total_issues:
+          type: string
+
+    TopFailingDevicesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopFailingDevice'
+
+    EmployeeLookupResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            emp_id:
+              type: string
+            name:
+              type: string
+            email:
+              type: string
+            role:
+              type: string
+            team:
+              type: string
+              nullable: true
+            is_active:
+              type: boolean
+            category_name:
+              type: string
+              nullable: true
+            created_at:
+              type: string
+        assets:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              serial_number:
+                type: string
+              category_name:
+                type: string
+              status:
+                type: string
+              assigned_at:
+                type: string
+                nullable: true
+        ticket_stats:
+          type: object
+          properties:
+            open:
+              type: integer
+            total:
+              type: integer
+
+    ImportAssetsRequest:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+
+    ImportAssetsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        imported:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+
+    DataPortalTeamsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        teams:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              category_key:
+                type: string
+
+    CreateDataPortalTicketRequest:
+      type: object
+      required: [title, description, ticket_type_id, category_id, priority, sla_days]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        ticket_type_id:
+          type: integer
+        category_id:
+          type: integer
+        priority:
+          type: string
+        sla_days:
+          type: integer
+        file:
+          type: string
+          format: binary
+
+    DataPortalTicketCreateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        ticket:
+          $ref: '#/components/schemas/Ticket'
+        routed_team:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            category_key:
+              type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        status:
+          type: string
+        timestamp:
+          type: string
+        uptime:
+          type: number
+
+    MessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
