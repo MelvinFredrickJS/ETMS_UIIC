@@ -1,8 +1,14 @@
-# ETMS Project Documentation
+# ETMS Employee Ticket Management System
 
-Version: 1.0.0
-Last updated: 2026-05-04
-Source of truth: repository files only (no external assumptions)
+## Project Documentation
+
+| Field           | Value                                           |
+| --------------- | ----------------------------------------------- |
+| Version         | 1.0.0                                           |
+| Last updated    | 2026-05-04                                      |
+| Source of truth | repository files only (no external assumptions) |
+
+---
 
 ## Table of Contents
 
@@ -39,18 +45,18 @@ Source of truth: repository files only (no external assumptions)
 
 ## 1. Executive Summary
 
-ETMS (Employee Ticket Management System) is a full-stack system for raising, approving, assigning, tracking, and resolving IT and operational tickets across departments. It includes role-based workflows, asset tracking, approval routing, SLA monitoring, and a dedicated Data Portal for data requests. It is built with React + Vite on the frontend and Node.js + Express + TypeScript on the backend, backed by PostgreSQL.
+ETMS (Employee Ticket Management System) is a full-stack platform for creating, approving, assigning, and resolving internal IT and operational requests. The system enforces role-based workflows, tracks asset ownership, and monitors SLA deadlines. It also provides a Data Portal flow for data-specific requests and responses.
 
-Key capabilities include:
+What the system delivers:
 
-- Multi-step ticket creation with categories, priorities, SLA days, and file attachments.
-- Manager approval workflows with re-approval after escalation.
-- Round-robin ticket assignment within a category/team.
-- Asset management with ownership history and spec details.
-- Data Portal for data-specific tickets and file downloads.
-- SLA escalation job with email notifications.
+- Ticket creation with category, priority, SLA days, optional attachments, and asset linking.
+- Multi-step approval and escalation for request tickets.
+- Auto-assignment (round-robin) to employees within a mapped team.
+- Asset lifecycle tracking with transfer history and spec details.
+- Data Portal requests with response file download.
+- SLA escalation job with email notification.
 
-Current status (per repository documentation): the backend is production-ready with a centralized Manager Service, access control enhancements, and SLA escalation tests passing.
+Current state based on repository notes: backend service modules are centralized, access control is formalized, and SLA escalation tests are verified.
 
 ---
 
@@ -58,18 +64,20 @@ Current status (per repository documentation): the backend is production-ready w
 
 ### 2.1 High-Level Architecture
 
-- Client (React + Vite) communicates with the Server (Express API) using JSON and multipart requests.
-- Server uses PostgreSQL with raw SQL (no ORM) and maintains strict role-based access control.
-- Files are stored on disk (uploads/ and uploads/responses/) and referenced in the database.
-- Email notifications are sent via SMTP or Ethereal in local development.
-- A cron job runs SLA escalation checks.
+- Frontend (React + Vite) calls a REST API over JSON and multipart/form-data.
+- Backend (Express + TypeScript) performs validation, access control, and persistence.
+- PostgreSQL stores normalized ticket, asset, user, and audit data.
+- Uploaded files are stored on disk and referenced in the database.
+- Email is sent via configured SMTP or Ethereal in local dev.
+- A cron job evaluates SLA due dates and triggers escalation alerts.
 
 ### 2.2 Major Components
 
-- Frontend: single-page app with role-specific routes and navigation.
-- Backend API: REST endpoints for auth, tickets, approvals, assets, categories, users, reports, data portal, and imports.
-- Database: normalized schema with ticketing, assets, attachments, logs, and permissions.
-- Background Job: SLA escalation using node-cron.
+- Frontend SPA with role-based routing and UI permissions.
+- REST API with auth, ticketing, approvals, assets, user management, reports, and data portal.
+- Database schema defined in raw SQL with enums, constraints, and indexes.
+- Background job for SLA escalation.
+- Swagger UI served by the backend for OpenAPI documentation.
 
 ---
 
@@ -97,30 +105,31 @@ Current status (per repository documentation): the backend is production-ready w
 - nodemailer
 - node-cron
 - helmet, cors, morgan
+- swagger-ui-express + yaml (OpenAPI rendering)
 
 ### Database
 
 - PostgreSQL
-- SQL migrations and seed scripts (database/\*.sql)
+- Raw SQL schema, migrations, and seed data (database/\*.sql)
 
 ---
 
 ## 4. Repository and Folder Structure
 
-Top-level files:
+Top-level documentation files:
 
-- README.md: project overview and primary instructions
-- README_BACKEND_FIXES.md: backend improvements summary
-- DEPLOYMENT_CHECKLIST.md: production deployment checklist
-- MANAGER_SERVICE_IMPLEMENTATION_COMPLETE.md: manager service summary
-- SLA_ESCALATION_TEST_RESULTS.md: SLA job test results
+- README.md: overall project overview and structure
+- README_BACKEND_FIXES.md: backend improvements
+- DEPLOYMENT_CHECKLIST.md: deployment steps
+- MANAGER_SERVICE_IMPLEMENTATION_COMPLETE.md: manager service notes
+- SLA_ESCALATION_TEST_RESULTS.md: SLA test outcomes
 
-Main workspace:
+Core workspace layout:
 
 - etms-mvp/
-  - client/: React frontend
-  - server/: Express backend
-  - database/: schema, seed, and migrations
+  - client/: frontend app
+  - server/: backend API
+  - database/: schema + seeds + migrations
   - scripts/: helper scripts
 
 ---
@@ -135,30 +144,72 @@ Main workspace:
 
 ### 5.2 Database Setup
 
-1. Create database:
-   psql -U postgres -c "CREATE DATABASE uiicdb;"
-2. Apply schema:
-   psql -U postgres -d uiicdb -f etms-mvp/database/schema.sql
-3. Seed data:
-   psql -U postgres -d uiicdb -f etms-mvp/database/seed.sql
+The SQL files are authoritative. Use the schema and seed scripts from etms-mvp/database:
+
+```bash
+psql -U postgres -c "CREATE DATABASE uiicdb;"
+psql -U postgres -d uiicdb -f etms-mvp/database/schema.sql
+psql -U postgres -d uiicdb -f etms-mvp/database/seed.sql
+```
+
+Note: Root scripts in etms-mvp/package.json reference a database named ETMS. Align DB_NAME and scripts to the same database name to avoid confusion.
 
 ### 5.3 Backend
 
-- Install: cd etms-mvp/server && npm install
-- Run dev server: npm run dev
-- Build: npm run build
-- Typecheck: npm run typecheck
+```bash
+cd etms-mvp/server
+npm install
+npm run dev
+```
+
+Additional backend scripts:
+
+```bash
+npm run build
+npm run typecheck
+```
+
+Current local endpoints:
+
+- API base: http://localhost:5003/api
+- Swagger UI: http://localhost:5003/api/docs
 
 ### 5.4 Frontend
 
-- Install: cd etms-mvp/client && npm install
-- Run dev server: npm run dev
-- Build: npm run build
-- Typecheck: npm run typecheck
+```bash
+cd etms-mvp/client
+npm install
+npm run dev
+```
+
+Additional frontend scripts:
+
+```bash
+npm run build
+npm run typecheck
+```
+
+Vite defaults to http://localhost:5173. If 5173 is in use, Vite selects the next available port (for example 5174).
 
 ### 5.5 Run Client and Server Together
 
-From etms-mvp/: npm run dev
+From etms-mvp/:
+
+```bash
+npm run dev
+```
+
+Scripts (etms-mvp/package.json):
+
+- dev:server
+- dev:client
+- dev
+- setup:db
+- seed:db
+- test:manager
+- test:data-portal-routing
+- test:ticket-cycle-consistency
+- test:reported-transition
 
 ---
 
@@ -173,25 +224,34 @@ Required (validated at startup):
 - DB_NAME
 - DB_USER
 - DB_PASSWORD
-- JWT_SECRET (recommended length >= 32)
+- JWT_SECRET (min 32 chars recommended)
 
-Optional:
+Optional (current server/.env values included in parentheses):
 
-- PORT (default 5000)
-- CLIENT_URL (default http://localhost:5173)
-- UPLOAD_DIR (default ./uploads)
-- RESPONSE_UPLOAD_DIR (default ./uploads/responses)
-- SMTP_HOST
-- SMTP_PORT (default 587)
+- PORT (5003)
+- CLIENT_URL (http://localhost:5173)
+- UPLOAD_DIR (./uploads)
+- RESPONSE_UPLOAD_DIR (./uploads/responses)
+- SMTP_HOST (blank uses Ethereal)
+- SMTP_PORT (587)
 - SMTP_USER
 - SMTP_PASS
-- SMTP_SECURE (true/false)
-- MAIL_FROM (default "ETMS <noreply@uiic.co.in>")
-- SLA_CRON_SCHEDULE (default 0 0 \* \* \*)
+- MAIL_FROM (ETMS <noreply@uiic.co.in>)
+- SLA_CRON_SCHEDULE (0 0 \* \* \*)
 
 ### 6.2 Client Environment Variables
 
-- VITE_API_URL (default http://localhost:5000/api)
+Client .env.example:
+
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+If backend is on 5003, update the runtime client config to:
+
+```env
+VITE_API_URL=http://localhost:5003/api
+```
 
 ---
 
@@ -202,112 +262,105 @@ Optional:
 - user_role_enum: employee, manager, admin, data_team
 - priority_enum: low, medium, high, critical
 
-### 7.2 Core Tables
+### 7.2 Core Tables (schema.sql)
 
 1. users
 
-- id, emp_id, name, email, password_hash, role, category_id, team, is_active
-- password_changed_at used to force password change on first login
+- id, emp_id, name, email, password_hash
+- role (user_role_enum)
+- category_id (FK -> ticket_categories)
+- team, is_active, password_changed_at
+- created_at
 
 2. ticket_types
 
-- complaint, request, data
+- id, name, type_key (complaint, request, data)
 
 3. ticket_categories
 
-- ticket_type_id, name, category_key
-- default_priority, manager_user_id
+- ticket_type_id (FK -> ticket_types)
+- name, category_key
+- default_priority (priority_enum)
+- manager_user_id (FK -> users)
 - assigned_team_key, is_team, requires_approval
 
 4. assets
 
-- name, serial_number, category_id, assigned_to, status
+- name, serial_number, category_id (FK -> ticket_categories)
+- assigned_to (FK -> users), status (active|under_repair|retired)
 - spec columns: machine_type, model, ram, hdd, monitor_serial, monitor_make, system_ip, port, ms_office_ver, os, host_id, floor, branch
+- created_at, updated_at
 
 5. asset_assignments
 
-- ownership history for assets
-- constraint ensures returned_at >= assigned_at
-- unique index ensures only one active assignment per asset
+- asset_id (FK -> assets), from_user_id, to_user_id
+- transferred_by, assigned_at, returned_at, note
+- check: returned_at is null or >= assigned_at
 
 6. tickets
 
-- ticket_no (UIIC-{C|R|D}-YYYY-XXXXXX)
-- title, description, ticket_type_id, category_id, priority, status
+- ticket_no format UIIC-{C|R|D}-YYYY-XXXXXX
+- title, description, ticket_type_id, category_id, priority
+- status (pending_approval, approved, assigned, in_progress, reported, resolved, closed, rejected)
 - raised_by, assigned_to, approval_owner_id, asset_id
 - rejection_reason, report_reason
-- sla_days, sla_due_date, escalated, escalated_at
+- sla_days (1-30), sla_due_date
+- escalated, escalated_at
+- created_at, updated_at
 
 7. attachments
 
-- ticket_id, filename, original_name, file_path, file_size, mime_type, uploaded_by, uploaded_at
+- ticket_id (FK -> tickets)
+- filename, original_name, file_path, file_size, mime_type
+- uploaded_by, uploaded_at
 
 8. ticket_logs
 
-- audit trail with action, old_status, new_status, performed_by, note
+- ticket_id, action, old_status, new_status, performed_by, note
+- created_at
 
-### 7.3 Manager Assignment History
+### 7.3 Indexes and Constraints (highlights)
 
-manager_assignment_history
+- tickets: raised_by, assigned_to, approval_owner_id, status, type, category, asset, SLA due date
+- assets: serial_number, category_id, assigned_to, status
+- asset_assignments: unique active assignment per asset
+- ticket_categories: team_key, is_team, manager_user_id
 
-- category_id, manager_user_id, action (assigned/removed), assigned_by, assigned_at, reason
+### 7.4 Additional SQL Scripts
 
-### 7.4 Permissions System
-
-- permissions
-- role_permissions
-- user_permissions
-- functions: has_permission, get_user_permissions
-
-### 7.5 Indexes and Constraints (highlights)
-
-- tickets: indexes on raised_by, assigned_to, approval_owner_id, status, type, category, asset, sla
-- assets: indexes on serial_number, category_id, assigned_to, status
-- asset_assignments: active assignment unique index and history indexes
-
-### 7.6 Seed and Migration Scripts
-
-- schema.sql: base schema
-- seed.sql: default team rows, users, categories, assets
-- create_permissions_system.sql: permissions tables and functions
-- create_manager_assignment_history.sql: history tracking
-- patch_data_team_routing.sql: data team routing and schema backfills
+- create_permissions_system.sql: permissions tables and helper functions
+- create_manager_assignment_history.sql: manager_assignment_history table
+- patch_data_team_routing.sql: data portal routing updates
 - migrate_asset_spec_columns.sql: asset spec columns
-- fix_categories.sql: replace categories with a specific 10-category model
-- add_category_employees.sql: inserts employees for categories
-- seed_two_managers.sql: two-manager variant
+- fix_categories.sql: category normalization
+- add_category_employees.sql: category employee inserts
+- seed_two_managers.sql: two-manager seed variant
 
 ---
 
 ## 8. Backend API Documentation
 
-Base URL: /api
+Base URL (current): http://localhost:5003/api
+Swagger UI: http://localhost:5003/api/docs
+OpenAPI source: docs/openapi.yaml
+
 Auth: JWT via Authorization: Bearer <token>
 
 ### 8.1 Authentication
 
-- POST /api/auth/login
-  - Body: { email, password }
-  - Response: { token, user }
-- GET /api/auth/me
-  - Response: current user with role and permissions
+- POST /api/auth/login (Login)
+- GET /api/auth/me (Current user)
 
 ### 8.2 Tickets
 
-- POST /api/tickets
-  - Access: employee
-  - Body (multipart/form-data): title, description, ticket_type_id, category_id, priority, sla_days, asset_id (for hardware), file (optional)
-- GET /api/tickets
-  - Access: admin, manager, employee
-  - Query: status, type, priority, ticket_id, page, limit
-- GET /api/tickets/:id
-- GET /api/tickets/:id/allowed-statuses
-- PUT /api/tickets/:id/status
-  - Body: { status, note?, report_reason? }
-- GET /api/tickets/:id/file
-- POST /api/tickets/:id/response-file
-  - Access: employee/manager (assignee only) for data tickets
-- GET /api/tickets/:id/response-file
+- POST /api/tickets (Create ticket, multipart/form-data)
+- GET /api/tickets (List tickets with filters)
+- GET /api/tickets/:id (Ticket details)
+- GET /api/tickets/:id/allowed-statuses (Status transitions)
+- PUT /api/tickets/:id/status (Update status)
+- GET /api/tickets/:id/file (Download attachment)
+- POST /api/tickets/:id/response-file (Upload response file)
+- GET /api/tickets/:id/response-file (Download response file)
 
 ### 8.3 Approvals
 
@@ -348,8 +401,7 @@ Auth: JWT via Authorization: Bearer <token>
 
 ### 8.7 Reports
 
-- GET /api/reports/top-failing-devices
-  - Query: limit (1-50)
+- GET /api/reports/top-failing-devices (limit 1-50)
 
 ### 8.8 Lookup
 
@@ -357,9 +409,7 @@ Auth: JWT via Authorization: Bearer <token>
 
 ### 8.9 Import
 
-- POST /api/import/assets/excel
-  - Access: admin, manager
-  - Body (multipart/form-data): file (.xlsx/.xls)
+- POST /api/import/assets/excel (admin/manager, .xls/.xlsx)
 
 ### 8.10 Data Portal
 
@@ -368,6 +418,10 @@ Auth: JWT via Authorization: Bearer <token>
 - GET /api/data-portal/tickets
 - GET /api/data-portal/tickets/:id
 - GET /api/data-portal/tickets/:id/response-file
+
+### 8.11 System
+
+- GET /health (health check)
 
 ---
 
@@ -380,98 +434,102 @@ Roles:
 - admin
 - data_team
 
-Access control is enforced by middleware and a permission system in the database. Key rules:
+Access control rules observed in code and documentation:
 
-- Admin: full access, view-only on ticket status changes.
-- Manager: access only to categories they manage; approvals and re-approvals.
-- Employee: access to own tickets and assigned tickets; can raise tickets.
-- Data Team: restricted to data portal workflow.
+- Admin: full access but cannot change ticket status.
+- Manager: approvals and re-approvals within managed categories.
+- Employee: can act on assigned tickets and raise new tickets.
+- Data Team: restricted to Data Portal flows.
 
-Assets:
+Asset-specific rules:
 
-- Only managers of infra_team can manage assets.
-- Employees can view their assets; infra employees can mark under_repair.
+- Asset management is constrained to infra managers; standard employees have read-only access to their assigned assets.
 
 ---
 
 ## 10. Business Logic and Workflows
 
-### 10.1 Ticket Lifecycle
+### 10.1 Ticket Lifecycle and Transitions
+
+Lifecycle order:
 
 pending_approval -> approved -> assigned -> in_progress -> resolved -> closed
 
-Escalation path:
+Escalation paths and terminal states:
 
-- report (reported) returns to pending_approval for request tickets
-- rejected and closed are terminal states
+- reported sends a request ticket back to pending_approval
+- rejected and closed are terminal
+
+Transition enforcement is defined in ticketTransitions.ts and includes role-specific checks.
 
 ### 10.2 Approval Workflow
 
-- Manager approves pending tickets.
-- Approved tickets auto-assign to least-loaded employee in mapped team.
-- Re-approval requires explicit assignee and applies to escalated tickets.
+- Managers approve or reject pending tickets.
+- Approved tickets move to assigned via system auto-assignment.
+- Escalated tickets require explicit re-approval.
 
 ### 10.3 Assignment Logic
 
-- Round-robin assignment based on open ticket count per employee.
+- Assignment is round-robin based on open ticket count in the mapped team.
 
-### 10.4 Asset Management
+### 10.4 Data Ticket Flow
 
-- Assets can be created, updated, transferred, and tracked in history.
-- Transfers create history rows and close previous assignments.
+- Data tickets require a response file before resolve actions are valid.
 
 ### 10.5 SLA Escalation
 
-- Tickets in assigned or in_progress past SLA due date are escalated.
-- Escalation emails sent to category manager.
-- 24-hour re-escalation rule prevents repeated alerts.
+- assigned or in_progress tickets past sla_due_date are escalated.
+- Escalations are emailed to category managers.
+- A 24-hour re-escalation rule limits repeat notifications.
 
-### 10.6 Manager Assignment
+### 10.6 Manager Assignment Tracking
 
-- ManagerService centralizes manager operations with caching.
-- Assignment history is recorded to manager_assignment_history.
+- ManagerService centralizes manager lookups and caching.
+- Assignment history is recorded for audit in manager_assignment_history.
 
 ---
 
 ## 11. Frontend Documentation
 
-### 11.1 Routes
+### 11.1 Routing Map
 
-- /login (public)
-- /change-password (forced on first login)
+- /login
+- /change-password
 - /dashboard
 - /tickets
-- /tickets/new (employee only)
+- /tickets/new
 - /tickets/:id
-- /approvals (manager only)
-- /reports (manager only)
-- /assets (employee + infra manager)
-- /admin (admin only)
-- /admin/teams (admin only)
-- /data-portal (data_team only)
+- /approvals
+- /reports
+- /assets
+- /admin
+- /admin/teams
+- /data-portal
 
-### 11.2 Pages
+### 11.2 Key Pages
 
-- LoginPage: authentication flow with password change check.
-- ChangePasswordPage: enforced for initial login.
-- DashboardPage: KPIs and recent tickets by role.
-- TicketsPage: role-scoped ticket list with filters.
-- NewTicketPage: step-based ticket creation with asset selection for hardware complaints.
-- TicketDetailPage: ticket details, logs, status actions, uploads.
-- PendingApprovalsPage: manager re-approval queue.
-- ReportsPage: top failing devices report with auto-refresh.
-- AssetsPage: employee asset cards; manager asset table with actions; Excel import.
-- AdminPage: user management, asset management, ticket list, lookup.
-- AdminTeamsPage: team management, create/delete teams, members.
+- LoginPage: login and first-time password change detection.
+- ChangePasswordPage: forced password update.
+- DashboardPage: ticket KPIs by role.
+- TicketsPage: filterable ticket list.
+- NewTicketPage: ticket creation flow with category and asset steps.
+- TicketDetailPage: ticket details, logs, transitions, uploads.
+- PendingApprovalsPage: manager approval queue.
+- ReportsPage: top failing devices report.
+- AssetsPage: asset list (read-only for employees, full management for infra managers).
+- AdminPage: user, asset, and ticket administration tabs.
+- AdminTeamsPage: team create/delete and member management.
 - DataPortalPage: data ticket creation and downloads.
 
-### 11.3 Core Components
+### 11.3 Frontend Structure Highlights
 
-- AppLayout and Sidebar: consistent layout and role-based navigation.
-- TicketCard, TypeBadge, StatusBadge, PriorityBadge: ticket visuals.
-- TicketTypeSelector, CategorySelector: ticket creation steps.
-- AssetDetailModal: spec viewing/editing.
-- CategoryOrgGraph: manager/employee org visualization.
+- api/axiosInstance.ts: Axios client with JWT interceptor and 401 auto-logout.
+- api/authApi.ts: login, getMe, changePassword calls.
+- api/ticketApi.ts: tickets, assets, users, approvals, reports, import, lookup.
+- context/AuthContext.tsx: JWT state stored per tab in sessionStorage.
+- components/common: StatusBadge, PriorityBadge, TypeBadge.
+- components/tickets: TicketCard, TicketTypeSelector, CategorySelector.
+- components/admin: CategoryOrgGraph for manager-employee visualization.
 
 ---
 
@@ -479,9 +537,9 @@ Escalation path:
 
 - ManagerService: manager lookup, assignment history, workload metrics, caching.
 - managerAssignmentService: legacy wrapper around ManagerService.
-- accessControlService: centralized access control checks and permission logic.
-- assignmentService: round-robin employee selection.
-- emailService: notification templates and send wrappers.
+- accessControlService: permission checks and RBAC logic.
+- assignmentService: round-robin assignee selection.
+- emailService: templated notification logic.
 
 ---
 
@@ -489,54 +547,52 @@ Escalation path:
 
 ### Middleware
 
-- authMiddleware: JWT verification and user load.
-- roleMiddleware: role guard helper.
-- uploadMiddleware: multer with allowed MIME types and size limits.
+- authMiddleware: JWT verification and user loading.
+- roleMiddleware: requireRole(...) checks.
+- uploadMiddleware: multer disk storage with MIME type filtering and size cap.
 
 ### Utilities
 
-- jwtUtils: JWT sign/verify (8h expiration).
+- jwtUtils: JWT sign/verify with 8-hour expiry.
 - generateTicketId: ticket number generation.
-- ticketTransitions: allowed status transitions and validation.
-- sanitizeFilename: safe file naming.
-- fileCleanup: safe deletion for error paths.
-- validateEnv: environment validation on startup.
+- ticketTransitions: central transition validation.
+- sanitizeFilename: safe upload filenames.
+- fileCleanup: safe deletion utilities.
+- validateEnv: environment validation at startup.
 
 ---
 
 ## 14. Data Models and Type Definitions
 
-Backend types are in server/types/index.ts and mirror database rows.
-Frontend types are in client/src/types/index.ts and mirror API payloads.
+Backend types (server/types/index.ts):
 
-Key entities:
+- UserRow, TicketRow, CategoryRow, AssetRow, TicketLogRow, AttachmentRow
 
-- User
-- Ticket
-- Category
-- Asset
-- TicketLog
-- Attachment
+Frontend types (client/src/types/index.ts):
+
+- User, Ticket, Category, Asset, TicketLog, Attachment
+
+These types mirror database row structures and API payloads.
 
 ---
 
 ## 15. Security
 
-- JWT-based auth with 8h expiry.
-- bcrypt password hashing (10 rounds).
-- Environment variables validated at startup.
-- Helmet and CORS enabled.
+- JWT-based auth (8h expiry).
+- bcrypt hashing (10 rounds).
+- Environment validation on startup.
+- helmet + cors for HTTP security and origins.
 - Role-based access enforcement.
-- File uploads restricted by MIME type and size.
+- File uploads restricted by MIME type and 5 MB size limit for ticket attachments.
 
 ---
 
 ## 16. File Management
 
-- Request attachments stored in uploads/.
-- Data response files stored in uploads/responses/.
-- Files are saved with sanitized names and tracked in attachments table.
-- Downloads are served via /uploads or direct response file endpoints.
+- Request attachments saved to uploads/.
+- Data response files saved to uploads/responses/.
+- Files are stored with sanitized names and referenced in attachments.
+- Downloads served through specific ticket endpoints.
 
 ---
 
@@ -544,14 +600,15 @@ Key entities:
 
 SLA Escalation Job:
 
-- schedule: SLA_CRON_SCHEDULE or 0 0 \* \* \*
-- logic: escalates tickets past SLA due date and sends manager emails
+- Schedule controlled by SLA_CRON_SCHEDULE.
+- Default schedule: 0 0 \* \* \* (midnight daily).
+- Escalates overdue assigned/in_progress tickets and emails managers.
 
 ---
 
 ## 18. Testing
 
-Repository scripts:
+Server scripts:
 
 - server/scripts/testManagerService.ts
 - server/scripts/testAccessControl.ts
@@ -570,31 +627,30 @@ Root scripts (etms-mvp/package.json):
 
 ## 19. Deployment
 
-See DEPLOYMENT_CHECKLIST.md for full steps. Highlights:
+Reference DEPLOYMENT_CHECKLIST.md. Key steps:
 
 - Build backend and frontend.
-- Configure .env securely.
-- Ensure uploads and response directories exist.
-- Run database migrations.
-- Verify /health endpoint.
+- Configure .env values securely.
+- Ensure upload directories exist.
+- Apply schema and migrations.
+- Validate /health endpoint.
 
 ---
 
 ## 20. Configuration Reference
 
-### Backend
+Backend:
 
 - PORT
 - CLIENT_URL
 - DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
 - JWT_SECRET
-- SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE
+- SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
 - MAIL_FROM
-- UPLOAD_DIR
-- RESPONSE_UPLOAD_DIR
+- UPLOAD_DIR, RESPONSE_UPLOAD_DIR
 - SLA_CRON_SCHEDULE
 
-### Frontend
+Frontend:
 
 - VITE_API_URL
 
@@ -602,71 +658,78 @@ See DEPLOYMENT_CHECKLIST.md for full steps. Highlights:
 
 ## 21. Troubleshooting
 
-Common issues:
+Common issues and checks:
 
-- 401 Unauthorized: check token in sessionStorage and JWT_SECRET.
-- File upload errors: verify allowed MIME types and size limits.
-- Missing env vars: validateEnv will exit server on missing required vars.
-- Data tickets resolution: response file required before resolving.
+- Port in use: change PORT in server/.env or stop the conflicting process.
+- 401 responses: verify JWT token and JWT_SECRET.
+- File upload errors: ensure MIME types match allowed list and size limit.
+- Missing env vars: server exits early due to validateEnv.
+- Data ticket resolution blocked: upload response file before resolve.
+- Client cannot reach API: align VITE_API_URL with backend port.
 
 ---
 
 ## 22. API Integration Guide
 
-1. Authenticate via POST /api/auth/login.
-2. Store token and include in Authorization header.
-3. For multipart endpoints, use multipart/form-data with file field name "file".
-4. Handle 401 globally (client auto-logout).
+1. POST /api/auth/login to get a JWT token.
+2. Store token in sessionStorage and attach it as Authorization: Bearer <token>.
+3. For file endpoints, use multipart/form-data with a file field named file.
+4. Handle 401 by clearing session and redirecting to /login.
 
 ---
 
 ## 23. Data Import and Export
 
-- Asset import via /api/import/assets/excel.
-- Data portal downloads via /api/data-portal/tickets/:id/response-file.
-- Ticket attachments via /api/tickets/:id/file and /api/tickets/:id/response-file.
+- Asset import: POST /api/import/assets/excel (.xls/.xlsx)
+- Data portal downloads: GET /api/data-portal/tickets/:id/response-file
+- Ticket attachments: GET /api/tickets/:id/file
+- Data response files: GET /api/tickets/:id/response-file
 
 ---
 
 ## 24. Maintenance and Operations
 
-- Monitor server logs for SLA job, email sending, and errors.
-- Regular DB backups and uploads directory backups are recommended.
-- Review asset_assignments and ticket_logs for audit trails.
+- Monitor server logs for SLA jobs and email delivery.
+- Backup database and uploads directories regularly.
+- Review ticket_logs and asset_assignments for audit history.
 
 ---
 
 ## 25. Development Guidelines
 
-- TypeScript strict mode used on both client and server.
-- Centralize role strings and transition logic in constants.
-- Use accessControlService for permission checks.
+- Keep role strings in constants/ROLES.ts.
+- Use ticketTransitions.ts for status rules.
+- Prefer accessControlService for permission checks.
+- Keep API contract in sync with docs/openapi.yaml.
 
 ---
 
 ## 26. Recent Updates and Fixes
 
-From README_BACKEND_FIXES.md and MANAGER_SERVICE_IMPLEMENTATION_COMPLETE.md:
+Based on repository notes:
 
-- Environment variable validation added.
-- JWT expiration updated to 8 hours.
-- File cleanup and upload directory handling improved.
+- Environment validation added.
+- JWT expiration set to 8 hours.
+- Upload directory creation and cleanup improvements.
 - Manager Service centralized with caching and history.
-- Access control service introduced with RBAC support.
-- Health check endpoint added.
+- Access control service and RBAC introduced.
+- /health endpoint added.
 - SLA escalation system tested and verified.
+- Swagger/OpenAPI documentation wired to /api/docs.
 
 ---
 
 ## 27. Future Enhancements
 
-Not implemented, recommended in repo docs:
+Recommended by existing repo notes:
 
 - Rate limiting
-- Swagger/OpenAPI
 - Structured logging
-- Workload balancing algorithms
-- More comprehensive tests
+- Improved workload balancing
+- Expanded automated tests
+- Team member management
+  - UI: admin team screen to add, remove, and transfer members across teams with confirmation dialogs and audit notes.
+  - API: endpoints for add, remove, and transfer team members with validation, permissions, and audit logging.
 
 ---
 
@@ -683,7 +746,7 @@ Not implemented, recommended in repo docs:
 - closed
 - rejected
 
-### 28.2 Default Login Accounts (from seed.sql)
+### 28.2 Default Login Accounts (seed.sql)
 
 - admin@uiic.co.in
 - mgr.infra@uiic.co.in
@@ -693,6 +756,6 @@ Not implemented, recommended in repo docs:
 ### 28.3 File Upload Constraints
 
 - Allowed MIME types: pdf, doc, docx, txt, png, jpg
-- Max size: 5 MB (tickets), 10 MB (excel import)
+- Max attachment size: 5 MB
 
 End of document.
