@@ -8,15 +8,16 @@ A full-stack ticket management system for raising, approving, assigning, and res
 
 ## Tech Stack
 
-| Layer    | Technology                                      |
-|----------|-------------------------------------------------|
-| Frontend | React 18 + Vite + TypeScript + Tailwind CSS     |
-| Backend  | Node.js + Express.js + TypeScript               |
-| Database | PostgreSQL (raw SQL, no ORM)                    |
-| Auth     | JWT (1h expiry) stored in `sessionStorage`      |
-| Password | bcrypt (rounds = 10)                            |
-| Files    | Multer — single file, max 5 MB                  |
-| Email    | Nodemailer (Ethereal for local dev)             |
+| Layer    | Technology                                  |
+| -------- | ------------------------------------------- |
+| Frontend | React 18 + Vite + TypeScript + Tailwind CSS |
+| Backend  | Node.js + Express.js + TypeScript           |
+| Database | PostgreSQL (raw SQL, no ORM)                |
+| Auth     | JWT (8h expiry) stored in `sessionStorage`  |
+| Password | bcrypt (rounds = 10)                        |
+| Files    | Multer — single file, max 5 MB              |
+| Email    | Nodemailer (Ethereal for local dev)         |
+| API Docs | OpenAPI 3.0 + Swagger UI at `/api/docs`     |
 
 ---
 
@@ -160,7 +161,7 @@ npm install
 Create `etms-mvp/server/.env`:
 
 ```env
-PORT=5000
+PORT=5003
 CLIENT_URL=http://localhost:5173
 
 DB_HOST=localhost
@@ -179,11 +180,15 @@ SMTP_PASS=
 MAIL_FROM="ETMS <noreply@uiic.co.in>"
 
 UPLOAD_DIR=./uploads
+RESPONSE_UPLOAD_DIR=./uploads/responses
+SLA_CRON_SCHEDULE=0 0 * * *
 ```
 
 ```bash
-npm run dev        # ts-node server.ts via nodemon
+npm run dev        # ts-node server.ts via nodemon → http://localhost:5003
 ```
+
+Once running, access the **Swagger UI** at: **http://localhost:5003/api/docs**
 
 ### 3. Frontend
 
@@ -203,11 +208,11 @@ npm run dev        # concurrently runs server + client
 
 ## Default Login
 
-| Role     | Email                    | Password     |
-|----------|--------------------------|--------------|
-| Admin    | admin@uiic.co.in         | Password@123 |
-| Manager  | mgr.network@uiic.co.in   | Password@123 |
-| Employee | tech1@uiic.co.in         | Password@123 |
+| Role     | Email                  | Password     |
+| -------- | ---------------------- | ------------ |
+| Admin    | admin@uiic.co.in       | Password@123 |
+| Manager  | mgr.network@uiic.co.in | Password@123 |
+| Employee | tech1@uiic.co.in       | Password@123 |
 
 > All non-admin users are forced to change their password on first login.
 
@@ -215,83 +220,91 @@ npm run dev        # concurrently runs server + client
 
 ## Roles & Permissions
 
-| Feature                        | Employee | Manager | Admin |
-|-------------------------------|----------|---------|-------|
-| Raise ticket                  | ✅       | ✅      | ❌    |
-| View own tickets               | ✅       | ✅      | ❌    |
-| View all tickets               | ❌       | ❌      | ✅ (read-only) |
-| Approve / Reject tickets       | ❌       | ✅ (own category) | ❌ |
-| Mark In Progress / Resolved    | ✅ (assigned) | ✅ (assigned) | ❌ |
-| Close / Report resolved ticket | ✅ (creator) | ✅ (creator) | ❌ |
-| View assets                    | ✅ (own) | ✅ (category) | ✅ (all) |
-| Transfer assets                | ❌       | ✅ (category) | ✅ |
-| Manage users                   | ❌       | ❌      | ✅    |
-| Employee lookup                | ❌       | ❌      | ✅    |
-| Top failing devices report     | ❌       | ✅      | ✅    |
+| Feature                        | Employee      | Manager           | Admin          |
+| ------------------------------ | ------------- | ----------------- | -------------- |
+| Raise ticket                   | ✅            | ✅                | ❌             |
+| View own tickets               | ✅            | ✅                | ❌             |
+| View all tickets               | ❌            | ❌                | ✅ (read-only) |
+| Approve / Reject tickets       | ❌            | ✅ (own category) | ❌             |
+| Mark In Progress / Resolved    | ✅ (assigned) | ✅ (assigned)     | ❌             |
+| Close / Report resolved ticket | ✅ (creator)  | ✅ (creator)      | ❌             |
+| View assets                    | ✅ (own)      | ✅ (category)     | ✅ (all)       |
+| Transfer assets                | ❌            | ✅ (category)     | ✅             |
+| Manage users                   | ❌            | ❌                | ✅             |
+| Employee lookup                | ❌            | ❌                | ✅             |
+| Top failing devices report     | ❌            | ✅                | ✅             |
 
 ---
 
 ## API Reference
 
 ### Auth
-| Method | Endpoint          | Access  |
-|--------|-------------------|---------|
-| POST   | /api/auth/login   | Public  |
-| GET    | /api/auth/me      | All     |
+
+| Method | Endpoint        | Access |
+| ------ | --------------- | ------ |
+| POST   | /api/auth/login | Public |
+| GET    | /api/auth/me    | All    |
 
 ### Tickets
-| Method | Endpoint                          | Access              |
-|--------|-----------------------------------|---------------------|
-| POST   | /api/tickets                      | Employee, Manager   |
-| GET    | /api/tickets                      | All (scoped by role)|
-| GET    | /api/tickets/:id                  | All (scoped)        |
-| GET    | /api/tickets/:id/allowed-statuses | All (scoped)        |
-| PUT    | /api/tickets/:id/status           | Employee, Manager   |
-| GET    | /api/tickets/:id/file             | All (scoped)        |
+
+| Method | Endpoint                          | Access               |
+| ------ | --------------------------------- | -------------------- |
+| POST   | /api/tickets                      | Employee, Manager    |
+| GET    | /api/tickets                      | All (scoped by role) |
+| GET    | /api/tickets/:id                  | All (scoped)         |
+| GET    | /api/tickets/:id/allowed-statuses | All (scoped)         |
+| PUT    | /api/tickets/:id/status           | Employee, Manager    |
+| GET    | /api/tickets/:id/file             | All (scoped)         |
 
 ### Approvals
-| Method | Endpoint                          | Access  |
-|--------|-----------------------------------|---------|
-| GET    | /api/approvals/pending            | Manager |
-| POST   | /api/approvals/:id/approve        | Manager |
-| POST   | /api/approvals/:id/reject         | Manager |
-| POST   | /api/approvals/:id/reapprove      | Manager |
+
+| Method | Endpoint                     | Access  |
+| ------ | ---------------------------- | ------- |
+| GET    | /api/approvals/pending       | Manager |
+| POST   | /api/approvals/:id/approve   | Manager |
+| POST   | /api/approvals/:id/reject    | Manager |
+| POST   | /api/approvals/:id/reapprove | Manager |
 
 ### Assets
-| Method | Endpoint                  | Access              |
-|--------|---------------------------|---------------------|
-| GET    | /api/assets               | Admin, Manager      |
-| GET    | /api/assets/my            | Employee, Manager   |
-| GET    | /api/assets/:id           | All (scoped)        |
-| POST   | /api/assets               | Admin               |
-| PATCH  | /api/assets/:id/status    | Admin, Manager      |
-| POST   | /api/assets/:id/transfer  | Admin, Manager      |
-| GET    | /api/assets/:id/history   | Admin, Manager      |
+
+| Method | Endpoint                 | Access            |
+| ------ | ------------------------ | ----------------- |
+| GET    | /api/assets              | Admin, Manager    |
+| GET    | /api/assets/my           | Employee, Manager |
+| GET    | /api/assets/:id          | All (scoped)      |
+| POST   | /api/assets              | Admin             |
+| PATCH  | /api/assets/:id/status   | Admin, Manager    |
+| POST   | /api/assets/:id/transfer | Admin, Manager    |
+| GET    | /api/assets/:id/history  | Admin, Manager    |
 
 ### Users
-| Method | Endpoint                       | Access  |
-|--------|--------------------------------|---------|
-| GET    | /api/users                     | Admin   |
-| POST   | /api/users                     | Admin   |
-| DELETE | /api/users/:id                 | Admin   |
-| POST   | /api/users/transfer-ownership  | Admin   |
-| PATCH  | /api/users/change-password     | All     |
+
+| Method | Endpoint                      | Access |
+| ------ | ----------------------------- | ------ |
+| GET    | /api/users                    | Admin  |
+| POST   | /api/users                    | Admin  |
+| DELETE | /api/users/:id                | Admin  |
+| POST   | /api/users/transfer-ownership | Admin  |
+| PATCH  | /api/users/change-password    | All    |
 
 ### Categories
-| Method | Endpoint                                | Access          |
-|--------|-----------------------------------------|-----------------|
-| GET    | /api/categories                         | All             |
-| GET    | /api/categories/:id/employees           | Admin, Manager  |
+
+| Method | Endpoint                      | Access         |
+| ------ | ----------------------------- | -------------- |
+| GET    | /api/categories               | All            |
+| GET    | /api/categories/:id/employees | Admin, Manager |
 
 ### Reports
-| Method | Endpoint                              | Access          |
-|--------|---------------------------------------|-----------------|
-| GET    | /api/reports/top-failing-devices      | Admin, Manager  |
+
+| Method | Endpoint                         | Access         |
+| ------ | -------------------------------- | -------------- |
+| GET    | /api/reports/top-failing-devices | Admin, Manager |
 
 ### Lookup
-| Method | Endpoint                        | Access |
-|--------|---------------------------------|--------|
-| GET    | /api/lookup/employee?q=         | Admin  |
+
+| Method | Endpoint                | Access |
+| ------ | ----------------------- | ------ |
+| GET    | /api/lookup/employee?q= | Admin  |
 
 ---
 
@@ -344,18 +357,21 @@ TICKET TYPE
 ## Key Features
 
 ### Ticket Management
+
 - 3-step wizard: Type → Category → Details
 - File attachment (PDF, DOC, DOCX, PNG, JPG — max 5 MB)
 - Status-coloured ticket cards (8 distinct colours)
 - Full activity log on every ticket
 
 ### Approval Workflow
+
 - Category managers approve/reject tickets in their domain
 - Round-robin auto-assignment to least-loaded employee
 - Escalation path: employee reports → back to manager queue
 - Manager re-approves with manual employee selection
 
 ### Asset Management
+
 - Assets tracked per employee with full transfer history
 - Admin: 3-tab panel (Users / Assets / All Tickets)
 - Manager: category-scoped asset table with transfer + status actions
@@ -363,15 +379,18 @@ TICKET TYPE
 - Assignment history drawer per asset
 
 ### Admin Panel
+
 - **Users tab** — add/delete users, transfer ownership, employee lookup by Emp ID or serial number, Category Org Graph (SVG visualisation of manager → employee relationships)
 - **Assets tab** — full asset table, add asset form, status change, transfer modal, history drawer
 - **All Tickets tab** — read-only filtered table with pagination
 
 ### Employee Lookup
+
 - Search by **Employee ID** or **Asset Serial Number**
 - Returns: user profile, active/inactive status, open/total ticket counts, all assigned assets with specs
 
 ### Email Notifications (7 triggers)
+
 1. Ticket raised → manager notified for approval
 2. Ticket approved → raiser notified
 3. Approval confirmed → manager confirmation
@@ -416,23 +435,44 @@ cd server && npm run typecheck
 
 ## Environment Variables
 
-| Variable       | Description                          | Default              |
-|----------------|--------------------------------------|----------------------|
-| PORT           | Server port                          | 5000                 |
-| CLIENT_URL     | CORS allowed origin                  | http://localhost:5173|
-| DB_HOST        | PostgreSQL host                      | localhost            |
-| DB_PORT        | PostgreSQL port                      | 5432                 |
-| DB_NAME        | Database name                        | uiicdb               |
-| DB_USER        | Database user                        | postgres             |
-| DB_PASSWORD    | Database password                    | —                    |
-| JWT_SECRET     | JWT signing secret                   | —                    |
-| SMTP_HOST      | SMTP host (blank = Ethereal)         | —                    |
-| SMTP_PORT      | SMTP port                            | 587                  |
-| SMTP_USER      | SMTP username                        | —                    |
-| SMTP_PASS      | SMTP password                        | —                    |
-| MAIL_FROM      | From address                         | ETMS \<noreply@uiic.co.in\> |
-| UPLOAD_DIR     | Multer upload directory              | ./uploads            |
+| Variable            | Description                  | Default                     |
+| ------------------- | ---------------------------- | --------------------------- |
+| PORT                | Server port                  | 5003                        |
+| CLIENT_URL          | CORS allowed origin          | http://localhost:5173       |
+| DB_HOST             | PostgreSQL host              | localhost                   |
+| DB_PORT             | PostgreSQL port              | 5432                        |
+| DB_NAME             | Database name                | uiicdb                      |
+| DB_USER             | Database user                | postgres                    |
+| DB_PASSWORD         | Database password            | —                           |
+| JWT_SECRET          | JWT signing secret           | —                           |
+| SMTP_HOST           | SMTP host (blank = Ethereal) | —                           |
+| SMTP_PORT           | SMTP port                    | 587                         |
+| SMTP_USER           | SMTP username                | —                           |
+| SMTP_PASS           | SMTP password                | —                           |
+| MAIL_FROM           | From address                 | ETMS \<noreply@uiic.co.in\> |
+| UPLOAD_DIR          | Multer upload directory      | ./uploads                   |
+| RESPONSE_UPLOAD_DIR | Response file storage        | ./uploads/responses         |
+| SLA_CRON_SCHEDULE   | SLA escalation job schedule  | 0 0 \* \* \* (nightly)      |
 
 ---
 
-> 🔒 United India Insurance Co. Ltd. — ETMS MVP — Local Development Only
+---
+
+## API Endpoints Quick Reference
+
+For complete API documentation with request/response examples, visit **http://localhost:5003/api/docs** (Swagger UI).
+
+**Key Endpoint Categories:**
+
+- **Auth** — login, user profile
+- **Tickets** — CRUD, status transitions, file management
+- **Approvals** — pending queue, approve/reject/reapprove
+- **Assets** — list, transfer, history, specification updates
+- **Users** — admin user management, role assignments
+- **Categories** — team structure, employee assignments
+- **Reports** — top failing devices analytics
+- **Lookup** — employee search by ID or asset serial
+- **Import** — bulk asset import from Excel
+- **Data Portal** — external team dashboards
+
+---
