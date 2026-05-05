@@ -6,6 +6,7 @@
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "dev":        "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "install:all": "npm install && npm --prefix client install && npm --prefix server install",
     "setup:db":   "psql -U postgres -d ETMS -f database/schema.sql",
     "seed:db":    "psql -U postgres -d ETMS -f database/seed.sql",
     "test:manager": "node test-manager-role-100.js",
